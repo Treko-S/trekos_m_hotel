@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Permite compartir archivos guardados en la carpeta pública /storage/emulated/0/... -->
+    <external-path name="external_storage" path="." />
+    <!-- Permite compartir archivos en la carpeta de descargas y documentos de la app -->
+    <external-files-path name="external_files" path="." />
+    <!-- Permite compartir archivos en la caché externa de la app -->
+    <external-cache-path name="external_cache" path="." />
+    <!-- Permite compartir archivos internos de la app -->
+    <files-path name="internal_files" path="." />
+    <!-- Permite compartir archivos en la caché interna de la app -->
+    <cache-path name="internal_cache" path="." />
+    <!-- Permite acceso a la raíz del dispositivo para máxima compatibilidad con almacenamiento compartido -->
+    <root-path name="root" path="." />
+</paths>
