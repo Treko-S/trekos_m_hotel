@@ -76,6 +76,8 @@ class Booking extends Equatable {
 
   bool get isFlexibleRate => ratePlanType.toLowerCase().contains('flex');
   bool get isCancelled => estado.toLowerCase().contains('cancelad');
+  double get anticipoPagado => folioTotalPagos > 0 ? folioTotalPagos : (montoTotal * 0.3);
+  double get displayRefund => refundAmount ?? anticipoPagado;
 
   DateTime? get checkInOfficialDateTime {
     try {

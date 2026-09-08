@@ -35,6 +35,7 @@ import 'package:trekos_m_hotel/features/profile/presentation/pages/notifications
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:trekos_m_hotel/init_dependencies.dart';
 import 'package:trekos_m_hotel/core/services/loyalty_service.dart';
+import 'package:trekos_m_hotel/core/services/notification_service.dart';
 
 class ExploreRoomsPage extends StatefulWidget {
   final int initialNavIndex;
@@ -158,6 +159,28 @@ class _ExploreRoomsPageState extends State<ExploreRoomsPage> with WidgetsBinding
             callback: (payload) {
               debugPrint('⚡ [Broadcast Instantáneo] Notificación de cambio recibida: $payload');
               _syncAllData(silent: true);
+
+              if (payload['action'] == 'cancel') {
+                try {
+                  final bookingCode = payload['bookingCode']?.toString() ?? 'Reserva';
+                  final reason = payload['reason']?.toString() ?? 'Cancelación de reserva';
+                  final refund = payload['refundAmount'];
+                  final currencyFmt = NumberFormat('#,###', 'es_PY');
+                  final refundStr = (refund is num && refund > 0)
+                      ? '${currencyFmt.format(refund.round()).replaceAll(',', '.')} Gs.'
+                      : (refund != null && refund.toString().isNotEmpty && refund.toString() != '0' ? '$refund Gs.' : null);
+
+                  NotificationService().showNotification(
+                    id: DateTime.now().millisecondsSinceEpoch % 100000,
+                    title: 'Hotel 3Vagos - Cancelación #$bookingCode',
+                    body: refundStr != null
+                        ? 'Tu reserva $bookingCode ha sido cancelada. ✓ Reembolso aprobado de $refundStr por tu adelanto. Motivo: $reason'
+                        : 'Tu reserva $bookingCode ha sido cancelada. Motivo: $reason',
+                  );
+                } catch (e) {
+                  debugPrint('⚠️ Error al mostrar notificación local: $e');
+                }
+              }
             },
           )
           .onPostgresChanges(
@@ -2830,7 +2853,7 @@ class _BookingCardItemState extends State<BookingCardItem> {
                             // Botones de acción del Folio: Abono y Comprobante Digital
                             Row(
                               children: [
-                                if (booking.folioSaldoPendiente > 0 && booking.folioId != null) ...[
+                                if (!booking.isCancelled && booking.folioSaldoPendiente > 0 && booking.folioId != null) ...[
                                   Expanded(
                                     child: SizedBox(
                                       height: 42,
@@ -2903,6 +2926,64 @@ class _BookingCardItemState extends State<BookingCardItem> {
                                       style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
                                     ),
                                   ),
+                                ),
+                              ),
+                            ] else ...[
+                              const SizedBox(height: 10),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF2F2),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: const Color(0xFFFECACA)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.cancel_outlined, color: Color(0xFFDC2626), size: 18),
+                                        const SizedBox(width: 8),
+                                        const Expanded(
+                                          child: Text(
+                                            'Reserva Cancelada',
+                                            style: TextStyle(
+                                              color: Color(0xFF991B1B),
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFFEE2E2),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: const Text(
+                                            'Cancelada',
+                                            style: TextStyle(
+                                              color: Color(0xFFDC2626),
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      booking.displayRefund > 0
+                                          ? 'Reembolso Aprobado: ${currencyFormat.format(booking.displayRefund)} Gs.\nSeña/adelanto reembolsado a su medio de pago original conforme a la política del plan ${booking.ratePlanType}.'
+                                          : 'La reserva ha sido cancelada sin cargos pendientes.',
+                                      style: const TextStyle(
+                                        color: Color(0xFF7F1D1D),
+                                        fontSize: 12,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],

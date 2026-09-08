@@ -371,4 +371,81 @@ class EmailNotificationService {
       htmlContent: htmlBody,
     );
   }
+
+  /// Envía un correo oficial notificando la cancelación de la reserva y la liquidación de reembolso / penalidad
+  static Future<bool> sendCancellationEmail({
+    required String recipientEmail,
+    required String guestName,
+    required String bookingCode,
+    required String roomNumber,
+    required String roomType,
+    required String reason,
+    required double totalAmount,
+    required double paidAmount,
+    required double refundAmount,
+    required double penaltyAmount,
+    required bool canFreeCancel,
+  }) async {
+    final cleanName = guestName.trim().isNotEmpty ? guestName.trim() : 'Huésped';
+
+    final htmlBody = '''
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%); color: #ffffff; padding: 26px 20px; text-align: center;">
+          <h1 style="margin: 0; font-size: 22px; font-weight: 700; color: #D4AF37; letter-spacing: 1px;">HOTEL 3 VAGOS</h1>
+          <p style="margin: 4px 0 0; font-size: 12px; color: #94A3B8;">Hospitalidad & Excelencia - UTCD Asunción</p>
+        </div>
+
+        <div style="padding: 24px;">
+          <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
+            <div style="font-size: 11px; color: #991B1B;">RUC: <strong>80092341-2</strong> | Timbrado SET: <strong>16789423</strong></div>
+            <div style="font-size: 14px; font-weight: 700; color: #DC2626; margin-top: 2px;">
+              NOTIFICACIÓN OFICIAL DE CANCELACIÓN & LIQUIDACIÓN
+            </div>
+          </div>
+
+          <p style="font-size: 14px; color: #334155; margin-bottom: 16px;">
+            Estimado/a <strong>$cleanName</strong>,<br>
+            Te informamos que tu reserva <strong>#$bookingCode</strong> correspondiente a la Habitación $roomNumber ($roomType) ha sido cancelada.
+          </p>
+
+          <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 13px;">
+            <strong style="color: #64748B;">Motivo Registrado:</strong><br>
+            <span style="color: #0F172A; font-weight: 600;">$reason</span>
+          </div>
+
+          <div style="background: ${canFreeCancel ? '#F0FDF4' : '#FFFBEB'}; border: 1px solid ${canFreeCancel ? '#BBF7D0' : '#FDE68A'}; border-radius: 8px; padding: 14px; margin-bottom: 20px;">
+            <div style="font-size: 13px; font-weight: 700; color: ${canFreeCancel ? '#166534' : '#92400E'}; margin-bottom: 8px;">
+              ${canFreeCancel ? '✓ Reembolso Autorizado del 100%' : '⚠️ Política de Penalidad Aplicada'}
+            </div>
+            <table style="width: 100%; font-size: 13px; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 4px 0; color: #64748B;">Monto Adelantado / Pagado:</td>
+                <td style="padding: 4px 0; text-align: right; font-weight: 600;">${_formatGs(paidAmount)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748B;">Penalidad Retenida:</td>
+                <td style="padding: 4px 0; text-align: right; font-weight: 700; color: #DC2626;">-${_formatGs(penaltyAmount)}</td>
+              </tr>
+              <tr style="border-top: 1px solid #E2E8F0;">
+                <td style="padding: 6px 0; font-weight: 700; color: #0F172A;">Monto a Reembolsar:</td>
+                <td style="padding: 6px 0; text-align: right; font-weight: 800; color: #15803D; font-size: 15px;">${_formatGs(refundAmount)}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div style="text-align: center; color: #94A3B8; font-size: 12px; line-height: 1.5;">
+            <p style="margin: 0 0 4px;">Hotel 3 Vagos S.A. - Asunción, Paraguay</p>
+            <p style="margin: 0; font-size: 11px;">Recepción y Asistencia 24/7 disponible para ti.</p>
+          </div>
+        </div>
+      </div>
+    ''';
+
+    return _dispatchEmail(
+      recipientEmail: recipientEmail,
+      guestName: cleanName,
+      subject: 'Cancelación de Reserva $bookingCode y Liquidación de Reembolso | Hotel 3 Vagos',
+      htmlContent: htmlBody,
+    );
+  }
 }

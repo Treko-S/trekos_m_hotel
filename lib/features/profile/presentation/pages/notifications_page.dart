@@ -107,24 +107,49 @@ class _NotificationsPageState extends State<NotificationsPage> {
         ),
       );
 
-      // B. Estadías y Check-in de Reservas REALES del usuario
+      // B. Estadías, Check-in y Cancelaciones de Reservas REALES del usuario
       try {
         if (!mounted) return;
         final hotelState = context.read<HotelBloc>().state;
         final bookings = hotelState.guestBookings;
-        for (var b in bookings.take(2)) {
-          final stayId = 'notif_stay_${b.id}';
-          items.add(
-            HotelNotificationItem(
-              id: stayId,
-              title: 'Hotel 3Vagos - Reserva ${b.codigoReserva}',
-              description: 'Tu estadía en ${b.habitacionTipo} (Hab. ${b.habitacionNumero}) está agendada del ${b.checkInPrevisto} al ${b.checkOutPrevisto}. Check-in disponible a las 14:00 hs.',
-              time: 'Hab. ${b.habitacionNumero}',
-              type: 'stay',
-              isRead: readIds.contains(stayId),
-              data: {'booking_id': b.id},
-            ),
-          );
+        final currencyFmt = NumberFormat('#,###', 'es_PY');
+        for (var b in bookings.take(6)) {
+          if (b.isCancelled || b.estado.toLowerCase() == 'cancelada') {
+            final cancelId = 'notif_cancel_${b.id}';
+            final hasRefund = b.anticipoPagado > 0;
+            final refundGs = '${currencyFmt.format(b.anticipoPagado.round()).replaceAll(',', '.')} Gs.';
+            items.add(
+              HotelNotificationItem(
+                id: cancelId,
+                title: 'Hotel 3Vagos - Cancelación de Reserva ${b.codigoReserva}',
+                description: hasRefund
+                    ? 'Tu reserva para la Hab. ${b.habitacionNumero} (${b.habitacionTipo}) ha sido cancelada. ✓ Reembolso aprobado por $refundGs correspondiente a tu seña adelantada (acreditación en proceso).'
+                    : 'Tu reserva para la Hab. ${b.habitacionNumero} (${b.habitacionTipo}) ha sido cancelada exitosamente.',
+                time: 'Cancelación Registrada',
+                type: 'stay',
+                isRead: readIds.contains(cancelId),
+                data: {
+                  'booking_id': b.id,
+                  'booking_code': b.codigoReserva,
+                  'refund_amount': b.anticipoPagado,
+                  'is_cancelled': true,
+                },
+              ),
+            );
+          } else {
+            final stayId = 'notif_stay_${b.id}';
+            items.add(
+              HotelNotificationItem(
+                id: stayId,
+                title: 'Hotel 3Vagos - Reserva ${b.codigoReserva}',
+                description: 'Tu estadía en ${b.habitacionTipo} (Hab. ${b.habitacionNumero}) está agendada del ${b.checkInPrevisto} al ${b.checkOutPrevisto}. Check-in disponible a las 14:00 hs.',
+                time: 'Hab. ${b.habitacionNumero}',
+                type: 'stay',
+                isRead: readIds.contains(stayId),
+                data: {'booking_id': b.id},
+              ),
+            );
+          }
         }
       } catch (_) {}
 
@@ -592,28 +617,36 @@ class _NotificationsPageState extends State<NotificationsPage> {
     Color iconColor;
     Color iconBg;
 
-    switch (notif.type) {
-      case 'invoice':
-        icon = Icons.receipt_long_rounded;
-        iconColor = const Color(0xFF16A34A);
-        iconBg = const Color(0xFFDCFCE7);
-        break;
-      case 'promo':
-        icon = Icons.local_offer_rounded;
-        iconColor = const Color(0xFFD97706);
-        iconBg = const Color(0xFFFEF3C7);
-        break;
-      case 'stay':
-        icon = Icons.hotel_rounded;
-        iconColor = AppTheme.primaryBlue;
-        iconBg = const Color(0xFFEFF6FF);
-        break;
-      case 'loyalty':
-      default:
-        icon = Icons.stars_rounded;
-        iconColor = const Color(0xFF7C3AED);
-        iconBg = const Color(0xFFEDE9FE);
-        break;
+    final isCancelled = notif.data != null && notif.data!['is_cancelled'] == true;
+
+    if (isCancelled) {
+      icon = Icons.cancel_outlined;
+      iconColor = const Color(0xFFDC2626);
+      iconBg = const Color(0xFFFEE2E2);
+    } else {
+      switch (notif.type) {
+        case 'invoice':
+          icon = Icons.receipt_long_rounded;
+          iconColor = const Color(0xFF16A34A);
+          iconBg = const Color(0xFFDCFCE7);
+          break;
+        case 'promo':
+          icon = Icons.local_offer_rounded;
+          iconColor = const Color(0xFFD97706);
+          iconBg = const Color(0xFFFEF3C7);
+          break;
+        case 'stay':
+          icon = Icons.hotel_rounded;
+          iconColor = AppTheme.primaryBlue;
+          iconBg = const Color(0xFFEFF6FF);
+          break;
+        case 'loyalty':
+        default:
+          icon = Icons.stars_rounded;
+          iconColor = const Color(0xFF7C3AED);
+          iconBg = const Color(0xFFEDE9FE);
+          break;
+      }
     }
 
     return InkWell(

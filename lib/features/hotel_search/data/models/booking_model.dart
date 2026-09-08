@@ -48,7 +48,7 @@ class BookingModel extends Booking {
     }
 
     final totalAlojamiento = parseDouble(json['monto_total']);
-    final totalPagado = parseDouble(folio?['total_pagos']);
+    final totalPagado = parseDouble(folio?['total_pagos'], parseDouble(json['anticipo_pagado']));
     final totalConsumos = parseDouble(folio?['total_consumos']);
     final totalServicios = parseDouble(folio?['total_servicios']);
     final totalCargos = parseDouble(folio?['total_cargos']);
@@ -88,7 +88,9 @@ class BookingModel extends Booking {
           : null,
       refundAmount: json['refund_amount'] != null
           ? parseDouble(json['refund_amount'])
-          : null,
+          : (json['estado']?.toString().toLowerCase().contains('cancelad') == true
+              ? (totalPagado > 0 ? totalPagado : totalAlojamiento * 0.3)
+              : null),
       cancelledAt: json['cancelled_at']?.toString(),
     );
   }
