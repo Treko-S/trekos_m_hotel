@@ -407,37 +407,43 @@ class _ServicesTabState extends State<ServicesTab> {
     final priceLabel = item.priceGs == 0 ? 'Gratuito' : '${currencyFormat.format(item.priceGs)} Gs.';
     final isAvailable = item.isAvailableInApp;
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+        onTap: () => _showServiceDetailModal(context, item, isOccupied, activeBooking, currencyFormat),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Imagen / Miniatura con Visor de Fotos Interactivo al tocar (Zoom)
-              GestureDetector(
-                onTap: () {
-                  if (item.imageUrl != null && item.imageUrl!.isNotEmpty) {
-                    PhotoGalleryViewer.show(
-                      context,
-                      images: [item.imageUrl!],
-                      title: item.title,
-                    );
-                  }
-                },
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. Imagen / Miniatura con Visor de Fotos Interactivo al tocar (Zoom)
+                  GestureDetector(
+                    onTap: () {
+                      if (item.imageUrl != null && item.imageUrl!.isNotEmpty) {
+                        PhotoGalleryViewer.show(
+                          context,
+                          images: [item.imageUrl!],
+                          title: item.title,
+                        );
+                      }
+                    },
                 child: Stack(
                   children: [
                     Container(
@@ -617,6 +623,222 @@ class _ServicesTabState extends State<ServicesTab> {
             ],
           ),
         ],
+      ),
+    ),
+  ),
+);
+  }
+
+  void _showServiceDetailModal(
+    BuildContext context,
+    ServiceItem item,
+    bool isOccupied,
+    Booking? activeBooking,
+    NumberFormat currencyFormat,
+  ) {
+    final priceLabel = item.priceGs == 0 ? 'Gratuito' : '${currencyFormat.format(item.priceGs)} Gs.';
+    final isAvailable = item.isAvailableInApp;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (bCtx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 16,
+          bottom: MediaQuery.of(bCtx).viewInsets.bottom + 24,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Imagen Grande del Producto
+              if (item.imageUrl != null && item.imageUrl!.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Image.network(
+                      item.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: const Color(0xFFF1F5F9),
+                        child: Icon(item.icon, size: 54, color: AppTheme.navyLuxury),
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+
+              // Categoría y Disponibilidad
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFBFDBFE)),
+                    ),
+                    child: Text(
+                      item.category,
+                      style: const TextStyle(color: Color(0xFF1E40AF), fontSize: 11.5, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isAvailable ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      isAvailable ? 'Disponible 24/7' : 'Pausado Temporalmente',
+                      style: TextStyle(
+                        color: isAvailable ? const Color(0xFF166534) : const Color(0xFF991B1B),
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Título
+              Text(
+                item.title,
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.navyLuxury,
+                ),
+              ),
+              const SizedBox(height: 6),
+
+              // Precio
+              Text(
+                priceLabel,
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.goldLuxury,
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Divider(color: Color(0xFFF1F5F9)),
+              const SizedBox(height: 10),
+
+              // Descripción Detallada
+              Text(
+                'Descripción del Producto / Servicio',
+                style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                item.description,
+                style: const TextStyle(fontSize: 13.5, color: Color(0xFF334155), height: 1.5),
+              ),
+              const SizedBox(height: 16),
+
+              // Información Operativa de Entrega
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.room_service_outlined, size: 18, color: AppTheme.navyLuxury),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Entrega y servicio directo a la puerta de tu habitación.',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF475569)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: const [
+                        Icon(Icons.receipt_outlined, size: 18, color: AppTheme.navyLuxury),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'El importe se carga a tu folio y se liquida al realizar el Check-out.',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF475569)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Botón de Acción
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: (!isAvailable)
+                        ? const Color(0xFF94A3B8)
+                        : (isOccupied ? AppTheme.navyLuxury : const Color(0xFF64748B)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: (!isAvailable)
+                      ? null
+                      : () {
+                          Navigator.pop(bCtx);
+                          if (!isOccupied) {
+                            _showRequireCheckInModal(context);
+                          } else {
+                            _showOrderConfirmationSheet(context, item, activeBooking!, currencyFormat);
+                          }
+                        },
+                  icon: Icon(
+                    (!isAvailable)
+                        ? Icons.block_rounded
+                        : (isOccupied ? Icons.add_shopping_cart_rounded : Icons.info_outline_rounded),
+                    size: 18,
+                    color: isOccupied ? AppTheme.goldLuxury : Colors.white,
+                  ),
+                  label: Text(
+                    (!isAvailable)
+                        ? 'No disponible en este momento'
+                        : (isOccupied ? 'Pedir y Cargar a la Habitación' : 'Disponible durante tu Estadía'),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

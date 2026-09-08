@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -48,6 +49,7 @@ class _ExploreRoomsPageState extends State<ExploreRoomsPage> with WidgetsBinding
   RealtimeChannel? _realtimeChannel;
   final TextEditingController _searchController = TextEditingController();
   final NumberFormat currencyFormat = NumberFormat.currency(locale: 'es_PY', symbol: '', decimalDigits: 0);
+  int _unreadNotificationsCount = 0;
 
   @override
   void initState() {
@@ -71,8 +73,49 @@ class _ExploreRoomsPageState extends State<ExploreRoomsPage> with WidgetsBinding
       }
     });
 
-    // Verificación única de popup de promoción activa
+    // Verificación de notificaciones no leídas y popup de promo
+    _checkUnreadNotifications();
     _checkAndShowPromoPopup();
+  }
+
+  /// Verifica cuántas notificaciones reales no han sido leídas por el usuario
+  Future<void> _checkUnreadNotifications() async {
+    try {
+      final authState = context.read<AuthBloc>().state;
+      final user = authState is AuthSuccess ? authState.user : null;
+      const storage = FlutterSecureStorage();
+      final storageKey = 'notif_read_ids_${user?.id ?? "guest"}';
+      Set<String> readIds = {};
+      final readRaw = await storage.read(key: storageKey);
+      if (readRaw != null && readRaw.isNotEmpty) {
+        readIds = Set<String>.from(jsonDecode(readRaw));
+      }
+
+      int count = 0;
+      if (!readIds.contains('notif_promo_verano_2026')) {
+        count++;
+      }
+
+      if (user != null) {
+        final loyaltyId = 'notif_loyalty_${user.id}';
+        if (!readIds.contains(loyaltyId)) {
+          count++;
+        }
+        if (!mounted) return;
+        final hotelState = context.read<HotelBloc>().state;
+        for (var b in hotelState.guestBookings.take(2)) {
+          if (!readIds.contains('notif_stay_${b.id}')) {
+            count++;
+          }
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _unreadNotificationsCount = count;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _checkAndShowPromoPopup() async {
@@ -357,26 +400,30 @@ class _ExploreRoomsPageState extends State<ExploreRoomsPage> with WidgetsBinding
                     ),
                     child: IconButton(
                       icon: const Icon(Icons.notifications_none_rounded, color: AppTheme.primaryBlue, size: 22),
-                      onPressed: () {
-                        Navigator.push(
+                      onPressed: () async {
+                        await Navigator.push(
                           context,
                           MaterialPageRoute(builder: (_) => const NotificationsPage()),
                         );
+                        if (mounted) {
+                          _checkUnreadNotifications();
+                        }
                       },
                     ),
                   ),
-                  Positioned(
-                    top: 10,
-                    right: 12,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: AppTheme.primaryBlue,
-                        shape: BoxShape.circle,
+                  if (_unreadNotificationsCount > 0)
+                    Positioned(
+                      top: 10,
+                      right: 12,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFEF4444),
+                          shape: BoxShape.circle,
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ],
@@ -863,16 +910,41 @@ class _ExploreRoomsPageState extends State<ExploreRoomsPage> with WidgetsBinding
                           ),
                           const SizedBox(height: 3),
 
-                          // Subtítulo tipo de habitación
-                          Text(
-                            room.tipoNombre,
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              color: AppTheme.textMuted,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          // Subtítulo tipo de habitación con calificación promedio
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  room.tipoNombre,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppTheme.textMuted,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF3C7),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFFFDE68A)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.star_rounded, size: 13, color: Color(0xFFD97706)),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      room.ratingAverage.toStringAsFixed(1),
+                                      style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF92400E)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
 
                           const SizedBox(height: 10),
@@ -1094,6 +1166,28 @@ class _ExploreRoomsPageState extends State<ExploreRoomsPage> with WidgetsBinding
     }
 
     final hotelState = context.watch<HotelBloc>().state;
+    final allBookings = hotelState.guestBookings;
+
+    // FILTRO TAREA 10:
+    // Las reservas que ya concluyeron su estadía (Check-out o Finalizada)
+    // desaparecen de 'Mis Reservas' y se consultan exclusivamente en el Historial de Estadías.
+    final activeBookings = allBookings.where((b) {
+      final st = b.estado.toLowerCase().trim();
+      return !st.contains('finaliz') &&
+          !st.contains('check-out') &&
+          !st.contains('checkout') &&
+          !st.contains('cancelad') &&
+          !st.contains('completad');
+    }).toList();
+
+    final hasCompletedStays = allBookings.any((b) {
+      final st = b.estado.toLowerCase().trim();
+      return st.contains('finaliz') ||
+          st.contains('check-out') ||
+          st.contains('checkout') ||
+          st.contains('cancelad') ||
+          st.contains('completad');
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1107,40 +1201,121 @@ class _ExploreRoomsPageState extends State<ExploreRoomsPage> with WidgetsBinding
                 'Mis Reservas',
                 style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.primaryDark),
               ),
-              IconButton(
-                icon: const Icon(Icons.refresh, color: AppTheme.primaryBlue),
-                onPressed: () {
-                  context.read<HotelBloc>().add(HotelFetchGuestBookings(authState.user.id));
-                },
+              Row(
+                children: [
+                  if (hasCompletedStays)
+                    IconButton(
+                      icon: const Icon(Icons.history_rounded, color: AppTheme.navyLuxury),
+                      tooltip: 'Historial de Estadías',
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const StayHistoryPage()),
+                        );
+                      },
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh, color: AppTheme.primaryBlue),
+                    onPressed: () {
+                      context.read<HotelBloc>().add(HotelFetchGuestBookings(authState.user.id));
+                    },
+                  ),
+                ],
               ),
             ],
           ),
         ),
 
         Expanded(
-          child: (hotelState.isBookingsLoading && hotelState.guestBookings.isEmpty)
+          child: (hotelState.isBookingsLoading && allBookings.isEmpty)
               ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryBlue))
-              : hotelState.guestBookings.isEmpty
+              : activeBookings.isEmpty
                   ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.receipt_long_outlined, size: 48, color: Colors.grey),
-                          const SizedBox(height: 12),
-                          const Text('No tienes reservas registradas actualmente'),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: () => setState(() => _currentNavIndex = 0),
-                            child: const Text('Explorar Habitaciones'),
-                          ),
-                        ],
+                      child: Padding(
+                        padding: const EdgeInsets.all(28.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(18),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFEFF6FF),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.calendar_month_outlined, size: 48, color: AppTheme.primaryBlue),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Sin Reservas Activas',
+                              style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.primaryDark),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'No tienes estadías en curso o pendientes de ingreso. Tus estadías finalizadas se encuentran archivadas en tu Historial de Estadías.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.black54, fontSize: 13, height: 1.4),
+                            ),
+                            const SizedBox(height: 20),
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primaryBlue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              icon: const Icon(Icons.hotel_rounded, size: 18),
+                              onPressed: () => setState(() => _currentNavIndex = 0),
+                              label: const Text('Explorar Habitaciones'),
+                            ),
+                            if (hasCompletedStays) ...[
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppTheme.navyLuxury,
+                                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                icon: const Icon(Icons.history_rounded, size: 18, color: AppTheme.navyLuxury),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => const StayHistoryPage()),
+                                  );
+                                },
+                                label: const Text('Ver Historial de Estadías Concluidas'),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                     )
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
-                      itemCount: hotelState.guestBookings.length,
+                      itemCount: activeBookings.length + (hasCompletedStays ? 1 : 0),
                       itemBuilder: (context, index) {
-                        final booking = hotelState.guestBookings[index];
+                        if (index == activeBookings.length) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 10, bottom: 26),
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppTheme.navyLuxury,
+                                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              icon: const Icon(Icons.history_rounded, size: 18, color: AppTheme.navyLuxury),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const StayHistoryPage()),
+                                );
+                              },
+                              label: const Text('Consultar Historial de Estadías Concluidas'),
+                            ),
+                          );
+                        }
+                        final booking = activeBookings[index];
                         return BookingCardItem(
                           booking: booking,
                           currencyFormat: currencyFormat,

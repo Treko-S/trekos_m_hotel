@@ -17,17 +17,19 @@ class StayHistoryPage extends StatelessWidget {
     final hotelState = context.watch<HotelBloc>().state;
     final allBookings = hotelState.guestBookings;
 
-    // Filtramos estadías pasadas o finalizadas (Check-out, Finalizada, Cancelada, o anteriores a hoy)
+    // Filtramos estadías pasadas o finalizadas exclusivamente (Check-out, Finalizada, Cancelada)
     final now = DateTime.now();
     final pastStays = allBookings.where((b) {
       final isFinishedState = b.estado.toLowerCase().contains('check-out') ||
+          b.estado.toLowerCase().contains('checkout') ||
           b.estado.toLowerCase().contains('finalizada') ||
-          b.estado.toLowerCase().contains('completada');
+          b.estado.toLowerCase().contains('completada') ||
+          b.estado.toLowerCase().contains('cancelada');
 
       final outDate = DateTime.tryParse(b.checkOutPrevisto);
-      final isPastDate = outDate != null && outDate.isBefore(now);
+      final isPastDate = outDate != null && outDate.isBefore(now) && !b.estado.toLowerCase().contains('estadia') && !b.estado.toLowerCase().contains('estadía');
 
-      return isFinishedState || isPastDate || allBookings.length <= 2;
+      return isFinishedState || isPastDate;
     }).toList();
 
     return Scaffold(

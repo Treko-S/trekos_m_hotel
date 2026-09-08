@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/theme/app_theme.dart';
 
@@ -10,12 +11,47 @@ class StayRemindersPage extends StatefulWidget {
 }
 
 class _StayRemindersPageState extends State<StayRemindersPage> {
+  static const _storage = FlutterSecureStorage();
   bool _checkInAlert = true;
   bool _roomReadyAlert = true;
   bool _folioChargesAlert = true;
   bool _checkOutAlert = true;
-  bool _whatsAppSummaryAlert = true;
+  bool _invoiceDigitalAlert = true;
   bool _promotionsAlert = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final cin = await _storage.read(key: 'alert_pref_checkin');
+      final rr = await _storage.read(key: 'alert_pref_roomready');
+      final fc = await _storage.read(key: 'alert_pref_folio');
+      final cout = await _storage.read(key: 'alert_pref_checkout');
+      final inv = await _storage.read(key: 'alert_pref_invoice_app_mail');
+      final promo = await _storage.read(key: 'alert_pref_promo');
+
+      if (mounted) {
+        setState(() {
+          if (cin != null) _checkInAlert = cin == 'true';
+          if (rr != null) _roomReadyAlert = rr == 'true';
+          if (fc != null) _folioChargesAlert = fc == 'true';
+          if (cout != null) _checkOutAlert = cout == 'true';
+          if (inv != null) _invoiceDigitalAlert = inv == 'true';
+          if (promo != null) _promotionsAlert = promo == 'true';
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _savePreference(String key, bool val) async {
+    try {
+      await _storage.write(key: key, value: val.toString());
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +106,10 @@ class _StayRemindersPageState extends State<StayRemindersPage> {
                     subtitle: 'Recordatorio 2 horas antes de tu llegada prevista al hotel.',
                     icon: Icons.login_rounded,
                     value: _checkInAlert,
-                    onChanged: (v) => setState(() => _checkInAlert = v),
+                    onChanged: (v) {
+                      setState(() => _checkInAlert = v);
+                      _savePreference('alert_pref_checkin', v);
+                    },
                   ),
                   const Divider(height: 1, color: Color(0xFFF1F5F9)),
                   _buildSwitchTile(
@@ -78,7 +117,10 @@ class _StayRemindersPageState extends State<StayRemindersPage> {
                     subtitle: 'Aviso cuando tu habitación esté lista para ingresar.',
                     icon: Icons.cleaning_services_rounded,
                     value: _roomReadyAlert,
-                    onChanged: (v) => setState(() => _roomReadyAlert = v),
+                    onChanged: (v) {
+                      setState(() => _roomReadyAlert = v);
+                      _savePreference('alert_pref_roomready', v);
+                    },
                   ),
                   const Divider(height: 1, color: Color(0xFFF1F5F9)),
                   _buildSwitchTile(
@@ -86,7 +128,10 @@ class _StayRemindersPageState extends State<StayRemindersPage> {
                     subtitle: 'Avisos al cargar pedidos a la cuenta de tu habitación.',
                     icon: Icons.receipt_long_rounded,
                     value: _folioChargesAlert,
-                    onChanged: (v) => setState(() => _folioChargesAlert = v),
+                    onChanged: (v) {
+                      setState(() => _folioChargesAlert = v);
+                      _savePreference('alert_pref_folio', v);
+                    },
                   ),
                 ],
               ),
@@ -116,15 +161,21 @@ class _StayRemindersPageState extends State<StayRemindersPage> {
                     subtitle: 'Alerta a las 10:00 hs para entrega de llaves y liquidación en recepción.',
                     icon: Icons.logout_rounded,
                     value: _checkOutAlert,
-                    onChanged: (v) => setState(() => _checkOutAlert = v),
+                    onChanged: (v) {
+                      setState(() => _checkOutAlert = v);
+                      _savePreference('alert_pref_checkout', v);
+                    },
                   ),
                   const Divider(height: 1, color: Color(0xFFF1F5F9)),
                   _buildSwitchTile(
-                    title: 'Comprobantes por WhatsApp Oficial',
-                    subtitle: 'Recibir foliatura digital y comprobantes al +595 993 554920.',
-                    icon: Icons.chat_rounded,
-                    value: _whatsAppSummaryAlert,
-                    onChanged: (v) => setState(() => _whatsAppSummaryAlert = v),
+                    title: 'Facturas & Comprobantes Legales',
+                    subtitle: 'Notificación inmediata en la app para descarga de PDF y copia a tu correo.',
+                    icon: Icons.receipt_long_rounded,
+                    value: _invoiceDigitalAlert,
+                    onChanged: (v) {
+                      setState(() => _invoiceDigitalAlert = v);
+                      _savePreference('alert_pref_invoice_app_mail', v);
+                    },
                   ),
                   const Divider(height: 1, color: Color(0xFFF1F5F9)),
                   _buildSwitchTile(
@@ -132,7 +183,10 @@ class _StayRemindersPageState extends State<StayRemindersPage> {
                     subtitle: 'Tarifas preferenciales para estudiantes y convenios institucionales.',
                     icon: Icons.local_offer_outlined,
                     value: _promotionsAlert,
-                    onChanged: (v) => setState(() => _promotionsAlert = v),
+                    onChanged: (v) {
+                      setState(() => _promotionsAlert = v);
+                      _savePreference('alert_pref_promo', v);
+                    },
                   ),
                 ],
               ),
