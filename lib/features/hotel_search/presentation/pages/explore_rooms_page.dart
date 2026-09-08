@@ -32,6 +32,7 @@ import 'package:trekos_m_hotel/core/widgets/promo_speed_dial.dart';
 import 'package:trekos_m_hotel/features/profile/presentation/pages/notifications_page.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:trekos_m_hotel/init_dependencies.dart';
+import 'package:trekos_m_hotel/core/services/loyalty_service.dart';
 
 class ExploreRoomsPage extends StatefulWidget {
   final int initialNavIndex;
@@ -1373,6 +1374,7 @@ class _ExploreRoomsPageState extends State<ExploreRoomsPage> with WidgetsBinding
     }
 
     final user = authState.user;
+    final hotelState = context.watch<HotelBloc>().state;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
@@ -1430,7 +1432,7 @@ class _ExploreRoomsPageState extends State<ExploreRoomsPage> with WidgetsBinding
           // ==========================================
           // CLUB DE FIDELIZACIÓN 3V (HUÉSPED VIP)
           // ==========================================
-          _buildLoyaltyCard(context, user),
+          _buildLoyaltyCard(context, user, hotelState.guestBookings),
           const SizedBox(height: 24),
 
           // SECCIÓN 1: CUENTA
@@ -1596,191 +1598,208 @@ class _ExploreRoomsPageState extends State<ExploreRoomsPage> with WidgetsBinding
     );
   }
 
-  Widget _buildLoyaltyCard(BuildContext context, dynamic user) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.4), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.25),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Fila superior: Logo Club + Badge Nivel
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.workspace_premium_rounded, color: Color(0xFFF59E0B), size: 22),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'CLUB DE FIDELIZACIÓN 3V',
-                    style: GoogleFonts.poppins(
-                      color: const Color(0xFFFDE68A),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
-                      blurRadius: 6,
-                    ),
-                  ],
-                ),
-                child: const Text(
-                  'SOCIO ORO VIP',
-                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                ),
+  Widget _buildLoyaltyCard(BuildContext context, dynamic user, List<Booking> guestBookings) {
+    return FutureBuilder<LoyaltyProfile>(
+      future: LoyaltyService().getProfile(user: user, bookings: guestBookings),
+      builder: (context, snapshot) {
+        final profile = snapshot.data;
+        final totalPointsStr = profile != null
+            ? NumberFormat.currency(locale: 'es_PY', symbol: '', decimalDigits: 0).format(profile.totalPoints)
+            : '...';
+        final tierBadge = profile?.tierBadge ?? 'SOCIO 3V';
+        final tierGradient = profile?.tierGradient ?? const [Color(0xFF94A3B8), Color(0xFF64748B)];
+        final membershipNumber = profile?.membershipNumber ?? '#3V-CLUB';
+        final progress = profile?.progress ?? 0.0;
+        final tierName = profile?.tierName ?? 'Cargando nivel...';
+        final nextTierName = profile?.nextTierName ?? 'Calculando beneficios...';
+        final perks = profile?.perks ?? ['Acumula puntos en cada reserva', 'Wi-Fi de Alta Velocidad'];
+
+        return Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: tierGradient.first.withValues(alpha: 0.4), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.25),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-
-          // Datos del socio
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user.name,
-                      style: GoogleFonts.playfairDisplay(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'Membresía #3V-884102',
-                      style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      '1.450',
-                      style: GoogleFonts.poppins(
-                        color: const Color(0xFFFDE68A),
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const Text(
-                    'Puntos Acumulados',
-                    style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 10),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Barra de progreso hacia Socio Platino
-          Column(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: const LinearProgressIndicator(
-                  value: 0.725, // 1450 / 2000
-                  backgroundColor: Colors.white12,
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF59E0B)),
-                  minHeight: 5,
-                ),
-              ),
-              const SizedBox(height: 4),
+              // Fila superior: Logo Club + Badge Nivel
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  Text('Nivel Oro', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10)),
-                  Text('Faltan 550 pts para Platino 💎', style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 10, fontWeight: FontWeight.w500)),
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: tierGradient.first.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.workspace_premium_rounded, color: tierGradient.first, size: 22),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'CLUB DE FIDELIZACIÓN 3V',
+                        style: GoogleFonts.poppins(
+                          color: const Color(0xFFFDE68A),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: tierGradient),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: tierGradient.first.withValues(alpha: 0.3),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      tierBadge,
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                    ),
+                  ),
                 ],
               ),
+              const SizedBox(height: 14),
+
+              // Datos del socio
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user.name,
+                          style: GoogleFonts.playfairDisplay(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Membresía $membershipNumber',
+                          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          totalPointsStr,
+                          style: GoogleFonts.poppins(
+                            color: const Color(0xFFFDE68A),
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const Text(
+                        'Puntos Acumulados',
+                        style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 10),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Barra de progreso hacia el siguiente nivel
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: Colors.white12,
+                      valueColor: AlwaysStoppedAnimation<Color>(tierGradient.first),
+                      minHeight: 5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(tierName, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10)),
+                      Flexible(
+                        child: Text(
+                          nextTierName,
+                          style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 10, fontWeight: FontWeight.w500),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Beneficios destacados activos
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: perks.map((p) => _buildLoyaltyPerkBadge(Icons.check_circle_outline_rounded, p)).toList(),
+              ),
+              const SizedBox(height: 12),
+
+              // Botón ver recompensas y canjes
+              SizedBox(
+                width: double.infinity,
+                child: TextButton.icon(
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFFFDE68A),
+                    backgroundColor: Colors.white.withValues(alpha: 0.08),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: tierGradient.first.withValues(alpha: 0.3)),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  onPressed: () => _showLoyaltyBenefitsDialog(context, user, guestBookings),
+                  icon: const Icon(Icons.card_giftcard_rounded, size: 16),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'Ver Catálogo de Beneficios y Canjes 3V',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 14),
-
-          // Beneficios destacados activos
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              _buildLoyaltyPerkBadge(Icons.access_time_rounded, 'Early / Late Check-in'),
-              _buildLoyaltyPerkBadge(Icons.restaurant_rounded, '10% OFF Frigobar & Restó'),
-              _buildLoyaltyPerkBadge(Icons.local_bar_rounded, 'Welcome Drink'),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Botón ver recompensas y canjes
-          SizedBox(
-            width: double.infinity,
-            child: TextButton.icon(
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFFDE68A),
-                backgroundColor: Colors.white.withValues(alpha: 0.08),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: const Color(0xFFD4AF37).withValues(alpha: 0.3)),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-              onPressed: () => _showLoyaltyBenefitsDialog(context),
-              icon: const Icon(Icons.card_giftcard_rounded, size: 16),
-              label: const FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  'Ver Catálogo de Beneficios y Canjes 3V',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1797,138 +1816,603 @@ class _ExploreRoomsPageState extends State<ExploreRoomsPage> with WidgetsBinding
         children: [
           Icon(icon, size: 12, color: const Color(0xFFFDE68A)),
           const SizedBox(width: 4),
-          Text(
-            text,
-            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w500),
+          Flexible(
+            child: Text(
+              text,
+              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w500),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
     );
   }
 
-  void _showLoyaltyBenefitsDialog(BuildContext context) {
+  void _showLoyaltyBenefitsDialog(BuildContext context, dynamic user, List<Booking> guestBookings) {
+    int activeTabIndex = 0; // 0: Canjes, 1: Cómo Sumar, 2: Historial, 3: Mis Vouchers
+
     showDialog(
       context: context,
-      builder: (dCtx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFEF3C7),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.stars_rounded, color: Color(0xFFD97706), size: 28),
+      builder: (dCtx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            backgroundColor: Colors.white,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            child: FutureBuilder<LoyaltyProfile>(
+              future: LoyaltyService().getProfile(user: user, bookings: guestBookings),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Padding(
+                    padding: EdgeInsets.all(40.0),
+                    child: Center(
+                      child: CircularProgressIndicator(color: AppTheme.primaryBlue),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  );
+                }
+
+                final profile = snapshot.data!;
+                final totalPointsStr = NumberFormat.currency(locale: 'es_PY', symbol: '', decimalDigits: 0).format(profile.totalPoints);
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header con Título y Saldo
+                      Row(
                         children: [
-                          Text(
-                            'Club Hotel 3V Luxury',
-                            style: GoogleFonts.playfairDisplay(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.navyLuxury),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(colors: profile.tierGradient),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.stars_rounded, color: Colors.white, size: 26),
                           ),
-                          const Text(
-                            'Programa Oficial de Fidelización',
-                            style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Club Hotel 3V Luxury',
+                                  style: GoogleFonts.playfairDisplay(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.navyLuxury),
+                                ),
+                                Text(
+                                  '${profile.tierName} • ${profile.membershipNumber}',
+                                  style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFFDE68A)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  '$totalPointsStr pts',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF92400E)),
+                                ),
+                                const Text(
+                                  'Saldo Activo',
+                                  style: TextStyle(fontSize: 9, color: Color(0xFFB45309)),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-                const Divider(height: 24),
-                const Text(
-                  'Catálogo de Canjes Disponibles:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.navyLuxury),
-                ),
-                const SizedBox(height: 10),
-                _buildRewardItem(Icons.spa_rounded, 'Sesión de Masaje Relajante (Spa)', '1.200 pts', true),
-                _buildRewardItem(Icons.restaurant_menu_rounded, 'Cena Gourmet para 2 Personas', '1.800 pts', false),
-                _buildRewardItem(Icons.king_bed_rounded, 'Noche de Estadía Estándar Gratis', '3.000 pts', false),
-                _buildRewardItem(Icons.more_time_rounded, 'Late Check-out garantizado hasta 16hs', '400 pts', true),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.info_outline, size: 16, color: Color(0xFF64748B)),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Los puntos se acreditan automáticamente tras completar el check-out de cada estadía.',
-                          style: TextStyle(fontSize: 11, color: Color(0xFF475569)),
+                      const SizedBox(height: 16),
+
+                      // Selector de Pestañas
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildDialogTabChip('Canjes 🎁', 0, activeTabIndex, (idx) => setDialogState(() => activeTabIndex = idx)),
+                            const SizedBox(width: 6),
+                            _buildDialogTabChip('Cómo Sumar 📈', 1, activeTabIndex, (idx) => setDialogState(() => activeTabIndex = idx)),
+                            const SizedBox(width: 6),
+                            _buildDialogTabChip('Historial 📜 (${profile.transactions.length})', 2, activeTabIndex, (idx) => setDialogState(() => activeTabIndex = idx)),
+                            const SizedBox(width: 6),
+                            _buildDialogTabChip('Mis Vouchers 🎟️ (${profile.vouchers.length})', 3, activeTabIndex, (idx) => setDialogState(() => activeTabIndex = idx)),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 20),
+
+                      // Contenido según Pestaña Activa
+                      if (activeTabIndex == 0) ...[
+                        // Pestaña 0: Catálogo de Canjes
+                        Text(
+                          'Catálogo de Recompensas y Canjes:',
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.navyLuxury),
+                        ),
+                        const SizedBox(height: 10),
+                        ...LoyaltyService.catalog.map((reward) {
+                          final canAfford = profile.totalPoints >= reward.pointsRequired;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: canAfford ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.03),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: canAfford ? const Color(0xFFFEF3C7) : const Color(0xFFF1F5F9),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Icon(reward.icon, size: 20, color: canAfford ? const Color(0xFFD97706) : const Color(0xFF94A3B8)),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            reward.title,
+                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.navyLuxury),
+                                          ),
+                                          Text(
+                                            reward.category,
+                                            style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: canAfford ? const Color(0xFFEFF6FF) : const Color(0xFFF1F5F9),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        '${NumberFormat.currency(locale: 'es_PY', symbol: '', decimalDigits: 0).format(reward.pointsRequired)} pts',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                          color: canAfford ? const Color(0xFF1D4ED8) : const Color(0xFF94A3B8),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  reward.description,
+                                  style: const TextStyle(fontSize: 11.5, color: Color(0xFF475569), height: 1.3),
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    if (!canAfford)
+                                      Text(
+                                        'Faltan ${reward.pointsRequired - profile.totalPoints} pts',
+                                        style: const TextStyle(fontSize: 11, color: Color(0xFFEF4444), fontWeight: FontWeight.w600),
+                                      )
+                                    else
+                                      const Text(
+                                        '¡Saldo suficiente para canje!',
+                                        style: TextStyle(fontSize: 11, color: Color(0xFF10B981), fontWeight: FontWeight.w600),
+                                      ),
+                                    FilledButton(
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: canAfford ? AppTheme.navyLuxury : const Color(0xFF94A3B8),
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                      onPressed: canAfford
+                                          ? () async {
+                                              final confirm = await showDialog<bool>(
+                                                context: dCtx,
+                                                builder: (confirmCtx) => AlertDialog(
+                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                  title: const Text('Confirmar Canje'),
+                                                  content: Text('¿Deseas canjear ${reward.pointsRequired} puntos por "${reward.title}"?'),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () => Navigator.pop(confirmCtx, false),
+                                                      child: const Text('Cancelar'),
+                                                    ),
+                                                    FilledButton(
+                                                      style: FilledButton.styleFrom(backgroundColor: AppTheme.navyLuxury),
+                                                      onPressed: () => Navigator.pop(confirmCtx, true),
+                                                      child: const Text('Confirmar'),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+
+                                              if (confirm == true) {
+                                                final voucher = await LoyaltyService().redeemReward(
+                                                  user: user,
+                                                  bookings: guestBookings,
+                                                  reward: reward,
+                                                );
+
+                                                if (voucher != null) {
+                                                  setDialogState(() {
+                                                    activeTabIndex = 3; // Mostrar vouchers
+                                                  });
+                                                  setState(() {}); // Actualizar tarjeta en perfil
+                                                  if (context.mounted) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      SnackBar(
+                                                        backgroundColor: const Color(0xFF0F172A),
+                                                        content: Text('¡Canje exitoso! Voucher #${voucher.code} generado.'),
+                                                      ),
+                                                    );
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          : null,
+                                      child: const Text('Canjear', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ] else if (activeTabIndex == 1) ...[
+                        // Pestaña 1: Cómo Sumar Puntos
+                        Text(
+                          'Reglas de Acumulación Club 3V:',
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.navyLuxury),
+                        ),
+                        const SizedBox(height: 10),
+                        _buildEarningRuleCard(
+                          icon: Icons.card_giftcard_rounded,
+                          title: 'Bono de Bienvenida Oficial',
+                          points: '+200 pts',
+                          description: 'Acreditado automáticamente al registrarte y activar tu cuenta.',
+                          isCompleted: true,
+                        ),
+                        _buildEarningRuleCard(
+                          icon: Icons.hotel_rounded,
+                          title: 'Gasto en Estadía & Alojamiento',
+                          points: '+1 pt / 1.000 Gs.',
+                          description: 'Suma 1 punto por cada mil guaraníes abonados en tus reservas.',
+                        ),
+                        _buildEarningRuleCard(
+                          icon: Icons.phone_android_rounded,
+                          title: 'Reserva Directa por App Móvil',
+                          points: '+100 pts / reserva',
+                          description: 'Bono exclusivo por reservar desde esta aplicación oficial.',
+                        ),
+                        _buildEarningRuleCard(
+                          icon: Icons.nightlight_round,
+                          title: 'Noches de Hospedaje en Hotel',
+                          points: '+50 pts / noche',
+                          description: 'Acumula puntos por cada noche descansada en Hotel 3 Vagos.',
+                        ),
+                        _buildEarningRuleCard(
+                          icon: Icons.check_circle_outline_rounded,
+                          title: 'Estadía Cumplida & Check-out',
+                          points: '+150 pts',
+                          description: 'Bono otorgado tras realizar el check-out y liquidar el folio.',
+                        ),
+                        _buildEarningRuleCard(
+                          icon: Icons.rate_review_outlined,
+                          title: 'Opinión & Calificación de Habitación',
+                          points: '+50 pts / reseña',
+                          description: 'Comparte tu experiencia en la ficha de habitación y suma puntos.',
+                        ),
+                        _buildEarningRuleCard(
+                          icon: Icons.room_service_outlined,
+                          title: 'Room Service & Consumos Minibar',
+                          points: '+1 pt / 1.000 Gs.',
+                          description: 'Por pedidos y consumos facturados a tu folio de habitación.',
+                        ),
+                      ] else if (activeTabIndex == 2) ...[
+                        // Pestaña 2: Historial de Movimientos
+                        Text(
+                          'Movimientos de Puntos (${profile.transactions.length}):',
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.navyLuxury),
+                        ),
+                        const SizedBox(height: 10),
+                        if (profile.transactions.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(20.0),
+                            child: Center(
+                              child: Text('Aún no tienes movimientos registrados.', style: TextStyle(color: Color(0xFF64748B), fontSize: 12)),
+                            ),
+                          )
+                        else
+                          ...profile.transactions.map((t) {
+                            final isPositive = t.points > 0;
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: isPositive ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      isPositive ? Icons.add_circle_outline_rounded : Icons.remove_circle_outline_rounded,
+                                      size: 18,
+                                      color: isPositive ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          t.title,
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppTheme.navyLuxury),
+                                        ),
+                                        if (t.subtitle.isNotEmpty)
+                                          Text(
+                                            t.subtitle,
+                                            style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  Text(
+                                    '${isPositive ? '+' : ''}${NumberFormat.currency(locale: 'es_PY', symbol: '', decimalDigits: 0).format(t.points)} pts',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: isPositive ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                      ] else ...[
+                        // Pestaña 3: Mis Vouchers Activos
+                        Text(
+                          'Mis Vouchers Canjeados (${profile.vouchers.length}):',
+                          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.navyLuxury),
+                        ),
+                        const SizedBox(height: 10),
+                        if (profile.vouchers.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Center(
+                              child: Column(
+                                children: const [
+                                  Icon(Icons.confirmation_number_outlined, size: 36, color: Color(0xFF94A3B8)),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'No tienes vouchers activos por el momento.',
+                                    style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                                  ),
+                                  Text(
+                                    'Canjea tus puntos acumulados en la pestaña "Canjes 🎁".',
+                                    style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else
+                          ...profile.vouchers.map((v) {
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppTheme.goldLuxury.withValues(alpha: 0.5)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.04),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFEF3C7),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          'VOUCHER #${v.code}',
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5, color: Color(0xFF92400E)),
+                                        ),
+                                      ),
+                                      const Text(
+                                        'Activo para Presentar',
+                                        style: TextStyle(fontSize: 10, color: Color(0xFF10B981), fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    v.rewardTitle,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.navyLuxury),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Canjeado por ${NumberFormat.currency(locale: 'es_PY', symbol: '', decimalDigits: 0).format(v.pointsSpent)} pts • Válido hasta ${v.expiresAt}',
+                                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Row(
+                                      children: const [
+                                        Icon(Icons.qr_code_2_rounded, size: 18, color: AppTheme.navyLuxury),
+                                        SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Presenta este código en Recepción o Restó para disfrutar tu beneficio.',
+                                            style: TextStyle(fontSize: 10.5, color: Color(0xFF334155)),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                      ],
+
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 44,
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppTheme.navyLuxury,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: () => Navigator.pop(dCtx),
+                          child: const Text('Cerrar', style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppTheme.navyLuxury,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: () => Navigator.pop(dCtx),
-                    child: const Text('Entendido'),
-                  ),
-                ),
-              ],
+                );
+              },
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildDialogTabChip(String label, int index, int selectedIndex, ValueChanged<int> onSelect) {
+    final isSelected = index == selectedIndex;
+    return InkWell(
+      onTap: () => onSelect(index),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.navyLuxury : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? Colors.white : const Color(0xFF475569),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildRewardItem(IconData icon, String title, String points, bool canAfford) {
+  Widget _buildEarningRuleCard({
+    required IconData icon,
+    required String title,
+    required String points,
+    required String description,
+    bool isCompleted = false,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: canAfford ? const Color(0xFFF8FAFC) : const Color(0xFFF8FAFC).withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: canAfford ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0)),
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: isCompleted ? const Color(0xFF86EFAC) : const Color(0xFFE2E8F0)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: canAfford ? const Color(0xFFD97706) : const Color(0xFF94A3B8)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: canAfford ? const Color(0xFF1E293B) : const Color(0xFF94A3B8)),
-            ),
-          ),
-          const SizedBox(width: 6),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: canAfford ? const Color(0xFFFEF3C7) : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(6),
+              color: isCompleted ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
+              shape: BoxShape.circle,
             ),
-            child: Text(
-              points,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: canAfford ? const Color(0xFFB45309) : const Color(0xFF94A3B8),
-              ),
+            child: Icon(icon, size: 16, color: isCompleted ? const Color(0xFF16A34A) : AppTheme.navyLuxury),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppTheme.navyLuxury),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        points,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10.5, color: Color(0xFF1D4ED8)),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+                ),
+              ],
             ),
           ),
         ],

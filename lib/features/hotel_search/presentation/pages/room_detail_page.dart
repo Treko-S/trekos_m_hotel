@@ -11,6 +11,7 @@ import 'package:trekos_m_hotel/features/hotel_search/presentation/bloc/hotel_blo
 import 'package:trekos_m_hotel/features/hotel_search/presentation/bloc/hotel_event.dart';
 import 'package:trekos_m_hotel/features/hotel_search/presentation/pages/create_booking_page.dart';
 import 'package:trekos_m_hotel/features/hotel_search/presentation/widgets/photo_gallery_viewer.dart';
+import 'package:trekos_m_hotel/core/services/loyalty_service.dart';
 
 class RoomDetailPage extends StatefulWidget {
   final Room room;
@@ -1346,6 +1347,7 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
                           String authorName = 'Huésped Verificado';
                           if (authState is AuthSuccess) {
                             authorName = authState.user.name;
+                            LoyaltyService().awardReviewPoints(authState.user.id);
                           }
 
                           setState(() {
@@ -1365,13 +1367,15 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
                             SnackBar(
                               backgroundColor: const Color(0xFF0F172A),
                               content: Row(
-                                children: const [
-                                  Icon(Icons.check_circle, color: Color(0xFF10B981)),
-                                  SizedBox(width: 8),
+                                children: [
+                                  const Icon(Icons.stars_rounded, color: Color(0xFFF59E0B)),
+                                  const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(
-                                      '¡Gracias por tu reseña! Tu opinión ayuda a otros huéspedes.',
-                                      style: TextStyle(color: Colors.white, fontSize: 12),
+                                      authState is AuthSuccess
+                                          ? '¡Gracias por tu reseña! Sumaste +50 Puntos a tu Club 3V 🌟'
+                                          : '¡Gracias por tu reseña! Tu opinión ayuda a otros huéspedes.',
+                                      style: const TextStyle(color: Colors.white, fontSize: 12),
                                     ),
                                   ),
                                 ],
