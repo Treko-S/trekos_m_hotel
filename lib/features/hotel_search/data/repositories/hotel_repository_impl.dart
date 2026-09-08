@@ -64,6 +64,8 @@ class HotelRepositoryImpl implements HotelRepository {
     required double amount,
     required String paymentMethod,
     String? reference,
+    double discountAmount = 0.0,
+    String? couponCode,
   }) async {
     try {
       final success = await remoteDataSource.registerFolioPayment(
@@ -72,6 +74,8 @@ class HotelRepositoryImpl implements HotelRepository {
         amount: amount,
         paymentMethod: paymentMethod,
         reference: reference,
+        discountAmount: discountAmount,
+        couponCode: couponCode,
       );
       return right(success);
     } catch (e) {

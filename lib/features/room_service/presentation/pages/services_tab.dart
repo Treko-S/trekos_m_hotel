@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -16,7 +18,11 @@ class ServiceItem {
   final String title;
   final String description;
   final int priceGs;
+  final int? costGs;
   final String category; // "Room Service", "Minibar", "Spa & Relax", "Servicios Extra"
+  final String? brand;
+  final String? barcode;
+  final String? promotion;
   final IconData icon;
   final String? imageUrl;
   final bool isAvailableInApp;
@@ -26,7 +32,11 @@ class ServiceItem {
     required this.title,
     required this.description,
     required this.priceGs,
+    this.costGs,
     required this.category,
+    this.brand,
+    this.barcode,
+    this.promotion,
     required this.icon,
     this.imageUrl,
     this.isAvailableInApp = true,
@@ -43,13 +53,17 @@ class ServicesTab extends StatefulWidget {
 class _ServicesTabState extends State<ServicesTab> {
   String _selectedCategory = 'Todos';
 
-  static const List<ServiceItem> _catalog = [
+  static const List<ServiceItem> _defaultCatalog = [
     ServiceItem(
       id: 's1',
       title: 'Desayuno Buffet Americano Extra',
       description: 'Desayuno completo en el salón comedor con frutas, café, jugos y panificados.',
       priceGs: 65000,
+      costGs: 25000,
       category: 'Servicios Extra',
+      brand: 'Restaurante 3 Vagos',
+      barcode: '7840001000018',
+      promotion: 'Gratis para Huéspedes Socios Diamante',
       icon: Icons.breakfast_dining_rounded,
       imageUrl: 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?w=800',
       isAvailableInApp: true,
@@ -59,7 +73,11 @@ class _ServicesTabState extends State<ServicesTab> {
       title: 'Masaje Relajante Descontracturante (50 min)',
       description: 'Sesión terapéutica en cabina de spa con aromaterapia y aceites esenciales.',
       priceGs: 180000,
+      costGs: 60000,
       category: 'Spa & Relax',
+      brand: 'Spa & Relax 3 Vagos',
+      barcode: '7840001000025',
+      promotion: '20% OFF para Socios Platino y Diamante',
       icon: Icons.spa_rounded,
       imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=800',
       isAvailableInApp: true,
@@ -69,9 +87,13 @@ class _ServicesTabState extends State<ServicesTab> {
       title: 'Agua Mineral sin Gas 500ml',
       description: 'Agua purificada fría de manantial en botella PET.',
       priceGs: 12000,
+      costGs: 4000,
       category: 'Minibar',
+      brand: 'Dasani / Manantial',
+      barcode: '7840001000032',
+      promotion: '1 Unidad de Cortesía en Habitación Suite',
       icon: Icons.local_drink_rounded,
-      imageUrl: 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?w=800',
+      imageUrl: 'https://nfbiqdhiowroosvfazid.supabase.co/storage/v1/object/public/hotel-rooms/products/agua_mineral_500ml.jpg',
       isAvailableInApp: true,
     ),
     ServiceItem(
@@ -79,9 +101,13 @@ class _ServicesTabState extends State<ServicesTab> {
       title: 'Cerveza Corona Extra 355ml',
       description: 'Cerveza rubia importada fría con gajo de lima.',
       priceGs: 25000,
+      costGs: 12000,
       category: 'Minibar',
+      brand: 'Corona Extra',
+      barcode: '7840001000049',
+      promotion: 'Happy Hour Minibar Viernes 2x1',
       icon: Icons.sports_bar_rounded,
-      imageUrl: 'https://images.unsplash.com/photo-1608270199026-663f7389a056?w=800',
+      imageUrl: 'https://nfbiqdhiowroosvfazid.supabase.co/storage/v1/object/public/hotel-rooms/products/cerveza_corona_355ml.jpg',
       isAvailableInApp: true,
     ),
     ServiceItem(
@@ -89,7 +115,11 @@ class _ServicesTabState extends State<ServicesTab> {
       title: 'Hamburguesa Gourmet 3 Vagos con Papas',
       description: 'Carne angus 200g, queso cheddar, cebolla caramelizada y salsa especial.',
       priceGs: 55000,
+      costGs: 22000,
       category: 'Room Service',
+      brand: 'Cocina Gourmet 3V',
+      barcode: '7840001000056',
+      promotion: '10% OFF para Socios Oro y Platino',
       icon: Icons.lunch_dining_rounded,
       imageUrl: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800',
       isAvailableInApp: true,
@@ -99,12 +129,93 @@ class _ServicesTabState extends State<ServicesTab> {
       title: 'Lavandería & Planchado Express (x Prenda)',
       description: 'Lavado y planchado en el día con entrega en percha a la habitación.',
       priceGs: 30000,
+      costGs: 10000,
       category: 'Servicios Extra',
+      brand: 'Lavandería Central 3V',
+      barcode: '7840001000063',
+      promotion: 'Planchado express de 1 traje incluido en Suite',
       icon: Icons.iron_rounded,
       imageUrl: 'https://images.unsplash.com/photo-1517677208171-0bc6725a3e60?w=800',
       isAvailableInApp: false, // Pausado / Agotado en Web Admin
     ),
   ];
+
+  late List<ServiceItem> _items = List.from(_defaultCatalog);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCatalogFromStorage();
+    _subscribeToCatalogUpdates();
+  }
+
+  void _subscribeToCatalogUpdates() {
+    try {
+      final channel = Supabase.instance.client.channel('hotel_universal_sync');
+      channel.onBroadcast(event: 'hotel_data_updated', callback: (payload) {
+        final table = payload['table']?.toString() ?? '';
+        if (table == 'catalogo_servicios' || table == 'hotel_catalog_sales') {
+          _loadCatalogFromStorage();
+        }
+      }).subscribe();
+    } catch (_) {}
+  }
+
+  Future<void> _loadCatalogFromStorage() async {
+    try {
+      final dio = Dio();
+      final response = await dio.get(
+        'https://nfbiqdhiowroosvfazid.supabase.co/storage/v1/object/public/hotel-rooms/catalog/sales_catalog.json',
+        options: Options(responseType: ResponseType.json),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final rawData = response.data;
+        final List list = rawData is List ? rawData : (rawData is String ? jsonDecode(rawData) : []);
+        final List<ServiceItem> fetched = [];
+
+        for (final item in list) {
+          if (item is Map) {
+            final cat = item['category']?.toString() ?? 'Servicios Extra';
+            IconData icon = Icons.local_offer_rounded;
+            final lowerName = item['name']?.toString().toLowerCase() ?? '';
+            if (cat.contains('Minibar')) {
+              icon = lowerName.contains('agua') ? Icons.local_drink_rounded : Icons.sports_bar_rounded;
+            } else if (cat.contains('Spa')) {
+              icon = Icons.spa_rounded;
+            } else if (cat.contains('Room Service')) {
+              icon = Icons.lunch_dining_rounded;
+            } else if (cat.contains('Lavander') || lowerName.contains('lavad')) {
+              icon = Icons.iron_rounded;
+            } else {
+              icon = Icons.breakfast_dining_rounded;
+            }
+
+            fetched.add(ServiceItem(
+              id: item['id']?.toString() ?? 's_${DateTime.now().millisecondsSinceEpoch}',
+              title: item['name']?.toString() ?? 'Producto',
+              description: item['description']?.toString() ?? '',
+              priceGs: (item['price'] is num) ? (item['price'] as num).toInt() : (int.tryParse(item['price']?.toString() ?? '') ?? 10000),
+              costGs: (item['cost'] is num) ? (item['cost'] as num).toInt() : (int.tryParse(item['cost']?.toString() ?? '') ?? 5000),
+              category: cat,
+              brand: item['brand']?.toString(),
+              barcode: item['barcode']?.toString(),
+              promotion: item['promo']?.toString(),
+              icon: icon,
+              imageUrl: item['imageUrl']?.toString(),
+              isAvailableInApp: item['availableInApp'] != false,
+            ));
+          }
+        }
+
+        if (mounted && fetched.isNotEmpty) {
+          setState(() {
+            _items = fetched;
+          });
+        }
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -125,8 +236,8 @@ class _ServicesTabState extends State<ServicesTab> {
     final isOccupied = activeOccupiedBooking != null;
 
     final filteredCatalog = _selectedCategory == 'Todos'
-        ? _catalog
-        : _catalog.where((item) => item.category == _selectedCategory).toList();
+        ? _items
+        : _items.where((item) => item.category == _selectedCategory).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -758,7 +869,64 @@ class _ServicesTabState extends State<ServicesTab> {
                 item.description,
                 style: const TextStyle(fontSize: 13.5, color: Color(0xFF334155), height: 1.5),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
+
+              // Ficha de Especificación Comercial (Marca, Código de Barras, Promoción)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  children: [
+                    if (item.brand != null) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Marca Oficial:', style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                          Text(item.brand!, style: const TextStyle(fontSize: 12, color: Color(0xFF1E293B), fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+                    if (item.barcode != null) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Código de Barras:', style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                          Row(
+                            children: [
+                              const Icon(Icons.qr_code_rounded, size: 14, color: Color(0xFF475569)),
+                              const SizedBox(width: 4),
+                              Text(item.barcode!, style: const TextStyle(fontSize: 11.5, fontFamily: 'monospace', color: Color(0xFF1E293B), fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+                    if (item.promotion != null) ...[
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Beneficio / Promo:', style: TextStyle(fontSize: 12, color: Color(0xFFB45309), fontWeight: FontWeight.w600)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              item.promotion!,
+                              textAlign: TextAlign.end,
+                              style: const TextStyle(fontSize: 11.5, color: Color(0xFFB45309), fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
 
               // Información Operativa de Entrega
               Container(

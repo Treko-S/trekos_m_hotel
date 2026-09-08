@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trekos_m_hotel/core/theme/app_theme.dart';
 import 'package:trekos_m_hotel/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:trekos_m_hotel/features/auth/presentation/pages/login_page.dart';
@@ -33,6 +36,46 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
     super.initState();
     // Refresco proactivo inmediato de la habitación al entrar
     context.read<HotelBloc>().add(const HotelFetchRooms(isSilent: true));
+    _loadPersistedReviews();
+  }
+
+  Future<void> _loadPersistedReviews() async {
+    try {
+      final key = 'room_reviews_${widget.room.numero}';
+      const storage = FlutterSecureStorage();
+      final localJson = await storage.read(key: key);
+      final List<Map<String, dynamic>> loaded = [];
+
+      if (localJson != null && localJson.isNotEmpty) {
+        final decoded = jsonDecode(localJson);
+        if (decoded is List) {
+          loaded.addAll(decoded.map((e) => Map<String, dynamic>.from(e as Map)));
+        }
+      }
+
+      // Complementar con las reseñas guardadas en Supabase si existen
+      final rawCaract = widget.room.caracteristicas;
+      if (rawCaract.containsKey('reviews') && rawCaract['reviews'] is List) {
+        final sbList = rawCaract['reviews'] as List;
+        for (final item in sbList) {
+          if (item is Map) {
+            final m = Map<String, dynamic>.from(item);
+            if (!loaded.any((r) => r['comment'] == m['comment'] && r['author'] == m['author'])) {
+              loaded.add(m);
+            }
+          }
+        }
+      }
+
+      if (mounted && loaded.isNotEmpty) {
+        setState(() {
+          _customReviews.clear();
+          _customReviews.addAll(loaded);
+        });
+      }
+    } catch (e) {
+      debugPrint('Nota: error al cargar reseñas persistidas: $e');
+    }
   }
 
   @override
@@ -1350,16 +1393,44 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
                             LoyaltyService().awardReviewPoints(authState.user.id);
                           }
 
+                          final newReview = {
+                            'author': authorName,
+                            'avatar': authorName.isNotEmpty ? authorName.substring(0, 1).toUpperCase() : 'H',
+                            'date': DateFormat('dd/MM/yyyy').format(DateTime.now()),
+                            'rating': selectedRating,
+                            'stay_type': category,
+                            'comment': text.isNotEmpty ? text : 'Excelente experiencia en la habitación. Muy recomendable.',
+                          };
+
                           setState(() {
-                            _customReviews.insert(0, {
-                              'author': authorName,
-                              'avatar': authorName.isNotEmpty ? authorName.substring(0, 1).toUpperCase() : 'H',
-                              'date': 'Hoy',
-                              'rating': selectedRating,
-                              'stay_type': category,
-                              'comment': text.isNotEmpty ? text : 'Excelente experiencia en la habitación. Muy recomendable.',
-                            });
+                            _customReviews.insert(0, newReview);
                           });
+
+                          // 1. Guardar de forma persistente en almacenamiento local seguro
+                          try {
+                            const storage = FlutterSecureStorage();
+                            storage.write(
+                              key: 'room_reviews_${widget.room.numero}',
+                              value: jsonEncode(_customReviews),
+                            );
+                          } catch (_) {}
+
+                          // 2. Persistir en Supabase en el registro de la habitación
+                          try {
+                            final currentCaract = Map<String, dynamic>.from(widget.room.caracteristicas);
+                            final currentList = List<dynamic>.from(currentCaract['reviews'] ?? []);
+                            currentList.insert(0, newReview);
+                            currentCaract['reviews'] = currentList;
+                            Supabase.instance.client.from('habitaciones').update({
+                              'caracteristicas': currentCaract,
+                            }).eq('id', widget.room.id).then((_) {
+                              if (mounted) {
+                                context.read<HotelBloc>().add(const HotelFetchRooms(isSilent: true));
+                              }
+                            });
+                          } catch (err) {
+                            debugPrint('Nota al persistir reseña en Supabase: $err');
+                          }
 
                           Navigator.pop(sheetCtx);
 

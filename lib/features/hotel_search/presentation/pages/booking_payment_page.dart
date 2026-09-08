@@ -215,15 +215,28 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
 
       // Validar códigos activos (VERANO2026, PROMO2026, UTCD2026)
       if (code == 'VERANO2026' || code == 'PROMO2026' || code == 'UTCD2026') {
-        final percent = 0.20; // 20% de descuento
-        final base = _amountToPay + _discountAmount;
-        final discount = (base * percent).roundToDouble();
+        final percent = 0.20; // 20% de descuento sobre el total de estadía
+        final totalStay = widget.booking.montoTotal > 0
+            ? widget.booking.montoTotal
+            : (widget.booking.folioSaldoPendiente > 0 ? widget.booking.folioSaldoPendiente : 720000.0);
+        final discount = (totalStay * percent).roundToDouble();
+        final discountedTotal = (totalStay - discount).clamp(0.0, double.infinity);
 
         setState(() {
           _appliedCouponCode = code;
           _discountPercent = percent;
           _discountAmount = discount;
-          _amountToPay = (base - discount).clamp(0.0, double.infinity);
+
+          if (_amountPresetIndex == 0) {
+            _amountToPay = discountedTotal;
+          } else if (_amountPresetIndex == 1) {
+            _amountToPay = (discountedTotal * 0.50).roundToDouble();
+          } else if (_amountPresetIndex == 2) {
+            _amountToPay = (discountedTotal * 0.20).roundToDouble();
+          } else {
+            _amountToPay = _amountToPay.clamp(0.0, discountedTotal);
+          }
+
           _customAmountController.text = currencyFormat.format(_amountToPay.round());
           _couponSuccessMessage = '¡Código $code canjeado con éxito! 20% de descuento aplicado (-${currencyFormat.format(discount)} Gs.).';
           _couponErrorMessage = null;
@@ -246,38 +259,44 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
 
   void _removeCoupon() {
     setState(() {
-      _amountToPay = (_amountToPay + _discountAmount).clamp(0.0, double.infinity);
-      _customAmountController.text = currencyFormat.format(_amountToPay.round());
       _appliedCouponCode = null;
       _discountPercent = 0.0;
       _discountAmount = 0.0;
       _couponSuccessMessage = null;
       _couponErrorMessage = null;
       _couponController.clear();
+
+      final pending = widget.booking.folioSaldoPendiente > 0
+          ? widget.booking.folioSaldoPendiente
+          : widget.booking.montoTotal;
+
+      if (_amountPresetIndex == 0) {
+        _amountToPay = pending;
+      } else if (_amountPresetIndex == 1) {
+        _amountToPay = (pending * 0.50).roundToDouble();
+      } else if (_amountPresetIndex == 2) {
+        _amountToPay = (pending * 0.20).roundToDouble();
+      }
+      _customAmountController.text = currencyFormat.format(_amountToPay.round());
     });
   }
 
   void _onPresetChanged(int index) {
-    final pending = widget.booking.folioSaldoPendiente > 0
+    final originalTotal = widget.booking.folioSaldoPendiente > 0
         ? widget.booking.folioSaldoPendiente
         : widget.booking.montoTotal;
+    final base = _discountAmount > 0
+        ? (originalTotal - _discountAmount).clamp(0.0, double.infinity)
+        : originalTotal;
 
     setState(() {
       _amountPresetIndex = index;
-      double base = pending;
       if (index == 0) {
-        base = pending;
-      } else if (index == 1) {
-        base = (pending * 0.50).roundToDouble();
-      } else if (index == 2) {
-        base = (pending * 0.20).roundToDouble();
-      }
-
-      if (_discountPercent > 0) {
-        _discountAmount = (base * _discountPercent).roundToDouble();
-        _amountToPay = (base - _discountAmount).clamp(0.0, double.infinity);
-      } else {
         _amountToPay = base;
+      } else if (index == 1) {
+        _amountToPay = (base * 0.50).roundToDouble();
+      } else if (index == 2) {
+        _amountToPay = (base * 0.20).roundToDouble();
       }
       _customAmountController.text = currencyFormat.format(_amountToPay.round());
     });
@@ -286,17 +305,15 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
   void _onCustomAmountChanged(String val) {
     final clean = val.replaceAll('.', '').replaceAll(',', '').trim();
     final parsed = double.tryParse(clean) ?? 0.0;
-    final pending = widget.booking.folioSaldoPendiente > 0
+    final originalTotal = widget.booking.folioSaldoPendiente > 0
         ? widget.booking.folioSaldoPendiente
         : widget.booking.montoTotal;
+    final maxAllowed = _discountAmount > 0
+        ? (originalTotal - _discountAmount).clamp(0.0, double.infinity)
+        : originalTotal;
 
     setState(() {
-      if (_discountPercent > 0) {
-        _discountAmount = (parsed * _discountPercent).roundToDouble();
-        _amountToPay = (parsed - _discountAmount).clamp(0.0, pending);
-      } else {
-        _amountToPay = parsed.clamp(0.0, pending);
-      }
+      _amountToPay = parsed.clamp(0.0, maxAllowed);
     });
   }
 
@@ -407,6 +424,8 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
             paymentMethod: methodName,
             reference: ref,
             guestId: guestId,
+            discountAmount: _discountAmount,
+            couponCode: _appliedCouponCode,
           ),
         );
   }
@@ -426,7 +445,9 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
     _voucherShown = true;
 
     final voucherCode = 'TRX-${DateTime.now().millisecondsSinceEpoch.toString().substring(5)}';
-    final remainingBalance = (widget.booking.folioSaldoPendiente - amountPaid).clamp(0.0, double.infinity);
+    final totalStay = widget.booking.montoTotal > 0 ? widget.booking.montoTotal : widget.booking.folioSaldoPendiente;
+    final effectiveTotal = _discountAmount > 0 ? (totalStay - _discountAmount).clamp(0.0, double.infinity) : totalStay;
+    final remainingBalance = (effectiveTotal - amountPaid).clamp(0.0, double.infinity);
     final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
     final formattedDate = dateFormat.format(DateTime.now());
 
@@ -614,11 +635,16 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
 
   @override
   Widget build(BuildContext context) {
-    final pendingBalance = widget.booking.folioSaldoPendiente > 0
+    final originalPending = widget.booking.folioSaldoPendiente > 0
         ? widget.booking.folioSaldoPendiente
         : widget.booking.montoTotal;
 
-    final newRemaining = (pendingBalance - _amountToPay).clamp(0.0, double.infinity);
+    final effectivePending = _discountAmount > 0
+        ? (originalPending - _discountAmount).clamp(0.0, double.infinity)
+        : originalPending;
+
+    final pendingBalance = effectivePending;
+    final newRemaining = (effectivePending - _amountToPay).clamp(0.0, double.infinity);
 
     return BlocListener<HotelBloc, HotelState>(
       listener: (context, state) {
@@ -990,9 +1016,9 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                     color: const Color(0xFFDCFCE7),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Text(
-                    '-20% APLICADO',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF166534)),
+                  child: Text(
+                    '-${(_discountPercent * 100).round()}% APLICADO',
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF166534)),
                   ),
                 ),
             ],

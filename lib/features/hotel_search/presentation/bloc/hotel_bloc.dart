@@ -206,6 +206,8 @@ class HotelBloc extends Bloc<HotelEvent, HotelState> {
       amount: event.amount,
       paymentMethod: event.paymentMethod,
       reference: event.reference,
+      discountAmount: event.discountAmount,
+      couponCode: event.couponCode,
     );
 
     result.fold(

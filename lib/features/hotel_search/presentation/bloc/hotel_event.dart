@@ -90,6 +90,8 @@ class HotelRegisterPaymentRequested extends HotelEvent {
   final String paymentMethod;
   final String? reference;
   final String guestId;
+  final double discountAmount;
+  final String? couponCode;
 
   const HotelRegisterPaymentRequested({
     required this.folioId,
@@ -98,6 +100,8 @@ class HotelRegisterPaymentRequested extends HotelEvent {
     required this.paymentMethod,
     this.reference,
     required this.guestId,
+    this.discountAmount = 0.0,
+    this.couponCode,
   });
 
   @override
@@ -108,5 +112,7 @@ class HotelRegisterPaymentRequested extends HotelEvent {
         paymentMethod,
         reference,
         guestId,
+        discountAmount,
+        couponCode,
       ];
 }

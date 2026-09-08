@@ -23,5 +23,7 @@ abstract class HotelRepository {
     required double amount,
     required String paymentMethod,
     String? reference,
+    double discountAmount = 0.0,
+    String? couponCode,
   });
 }
