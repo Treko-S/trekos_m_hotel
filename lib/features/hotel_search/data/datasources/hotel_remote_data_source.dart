@@ -1,9 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trekos_m_hotel/features/hotel_search/data/models/booking_model.dart';
 import 'package:trekos_m_hotel/features/hotel_search/data/models/room_model.dart';
+import 'package:trekos_m_hotel/features/hotel_search/domain/entities/cancellation_evaluation.dart';
 import 'package:trekos_m_hotel/features/hotel_search/domain/entities/companion_guest.dart';
 
 abstract class HotelRemoteDataSource {
@@ -17,7 +19,10 @@ abstract class HotelRemoteDataSource {
     required double montoTotal,
     required int cantidadHuespedes,
     List<CompanionGuest> acompanantes = const [],
+    String ratePlanType = 'Flexible',
   });
+  Future<CancellationEvaluation> evaluateCancellation(String bookingId);
+  Future<bool> cancelBooking(String bookingId, {String? reason});
   Future<bool> registerFolioPayment({
     required String folioId,
     required String bookingId,
@@ -74,6 +79,7 @@ class HotelRemoteDataSourceImpl implements HotelRemoteDataSource {
     required double montoTotal,
     required int cantidadHuespedes,
     List<CompanionGuest> acompanantes = const [],
+    String ratePlanType = 'Flexible',
   }) async {
     try {
       final checkInStr = checkIn.toIso8601String().split('T')[0];
@@ -105,6 +111,7 @@ class HotelRemoteDataSourceImpl implements HotelRemoteDataSource {
           'monto_total': montoTotal,
           'canal_venta': 'App Móvil',
           'estado': 'Confirmada',
+          'rate_plan_type': ratePlanType,
         }).select('*, habitaciones(*, tipos_habitacion(*))').single();
         bookingResponse = Map<String, dynamic>.from(resp);
       } catch (_) {
@@ -120,6 +127,7 @@ class HotelRemoteDataSourceImpl implements HotelRemoteDataSource {
           'estado': 'Confirmada',
         }).select().single();
         bookingResponse = Map<String, dynamic>.from(resp);
+        bookingResponse['rate_plan_type'] = ratePlanType;
       }
 
       final bookingId = bookingResponse['id'].toString();
@@ -304,6 +312,181 @@ class HotelRemoteDataSourceImpl implements HotelRemoteDataSource {
       return true;
     } catch (e) {
       throw Exception('Error al registrar el pago: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<CancellationEvaluation> evaluateCancellation(String bookingId) async {
+    try {
+      // 1. Intentar RPC en PostgreSQL
+      try {
+        final rpcResp = await supabaseClient.rpc(
+          'evaluate_reservation_cancellation',
+          params: {'p_reserva_id': bookingId},
+        );
+        if (rpcResp != null && rpcResp is Map && rpcResp['success'] == true) {
+          return CancellationEvaluation.fromMap(
+            Map<String, dynamic>.from(rpcResp),
+            fallbackBookingId: bookingId,
+          );
+        }
+      } catch (e) {
+        debugPrint('RPC evaluate_reservation_cancellation fallback local: $e');
+      }
+
+      // 2. Fallback de evaluación local cruzando datos de la reserva y folio
+      final resData = await supabaseClient
+          .from('reservas')
+          .select('id, codigo_reserva, check_in_previsto, rate_plan_type, monto_total, anticipo_pagado, folios(total_pagos)')
+          .eq('id', bookingId)
+          .maybeSingle();
+
+      if (resData == null) {
+        throw Exception('Reserva no encontrada para evaluación.');
+      }
+
+      final checkInStr = resData['check_in_previsto']?.toString() ?? '';
+      DateTime checkInDateTime = DateTime.now();
+      final parsedDate = DateTime.tryParse(checkInStr);
+      if (parsedDate != null) {
+        checkInDateTime = DateTime(parsedDate.year, parsedDate.month, parsedDate.day, 14, 0, 0);
+      }
+
+      final hoursDiff = checkInDateTime.difference(DateTime.now()).inMinutes / 60.0;
+      final rawPlan = resData['rate_plan_type']?.toString() ?? 'Flexible';
+      final isFlexible = rawPlan.toLowerCase().contains('flex');
+
+      double totalPagado = 0.0;
+      final folios = resData['folios'];
+      if (folios is List && folios.isNotEmpty) {
+        final f = folios.first as Map<String, dynamic>;
+        totalPagado = (f['total_pagos'] is num) ? (f['total_pagos'] as num).toDouble() : 0.0;
+      } else if (folios is Map<String, dynamic>) {
+        totalPagado = (folios['total_pagos'] is num) ? (folios['total_pagos'] as num).toDouble() : 0.0;
+      } else {
+        totalPagado = (resData['anticipo_pagado'] is num) ? (resData['anticipo_pagado'] as num).toDouble() : 0.0;
+      }
+
+      final currencyFmt = NumberFormat('#,##0', 'es_PY');
+      final formattedMonto = '${currencyFmt.format(totalPagado)} Gs.';
+
+      final bool canCancelFree = isFlexible && (hoursDiff > 24.0);
+      final bool isPenalty = !canCancelFree;
+      final double refundAmount = canCancelFree ? totalPagado : 0.0;
+      final double penaltyAmount = isPenalty ? totalPagado : 0.0;
+
+      String message;
+      if (canCancelFree) {
+        message = 'Tu tarifa permite cancelación gratuita. El monto de $formattedMonto será reembolsado.';
+      } else {
+        message = isFlexible
+            ? 'Atención: Has superado el límite de 24 horas previas al check-in oficial (${hoursDiff.toStringAsFixed(1)} hs restantes). Al cancelar, perderás el monto abonado de $formattedMonto. ¿Deseas proceder?'
+            : 'Atención: Tu plan de tarifa (Promo No Reembolsable) no admite devoluciones. Al cancelar, perderás el monto abonado de $formattedMonto. ¿Deseas proceder?';
+      }
+
+      return CancellationEvaluation(
+        bookingId: bookingId,
+        ratePlanType: rawPlan,
+        hoursRemaining: hoursDiff,
+        totalPaid: totalPagado,
+        canCancelFree: canCancelFree,
+        isPenalty: isPenalty,
+        refundAmount: refundAmount,
+        penaltyAmount: penaltyAmount,
+        message: message,
+      );
+    } catch (e) {
+      throw Exception('Error al evaluar cancelación de reserva: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<bool> cancelBooking(String bookingId, {String? reason}) async {
+    try {
+      final defaultReason = reason ?? 'Cancelada por el huésped desde App Móvil';
+
+      // 1. Intentar RPC en PostgreSQL
+      try {
+        final rpcResp = await supabaseClient.rpc(
+          'cancel_reservation',
+          params: {
+            'p_reserva_id': bookingId,
+            'p_reason': defaultReason,
+          },
+        );
+        if (rpcResp != null && rpcResp is Map && rpcResp['success'] == true) {
+          try {
+            final channel = supabaseClient.channel('hotel_universal_sync');
+            await channel.sendBroadcastMessage(
+              event: 'hotel_data_updated',
+              payload: {'table': 'reservas', 'id': bookingId, 'action': 'cancelled'},
+            );
+          } catch (_) {}
+          return true;
+        }
+      } catch (e) {
+        debugPrint('RPC cancel_reservation fallback local: $e');
+      }
+
+      // 2. Fallback de cancelación local
+      final eval = await evaluateCancellation(bookingId);
+      final resData = await supabaseClient
+          .from('reservas')
+          .select('habitacion_id')
+          .eq('id', bookingId)
+          .maybeSingle();
+      final int? habitacionId = resData?['habitacion_id'] is int
+          ? resData!['habitacion_id'] as int
+          : int.tryParse(resData?['habitacion_id']?.toString() ?? '');
+
+      final cancellationStatus = eval.isPenalty
+          ? 'Penalizado'
+          : (eval.refundAmount > 0 ? 'Pendiente' : 'Reembolsado');
+
+      // Actualizar reserva
+      try {
+        await supabaseClient.from('reservas').update({
+          'estado': 'Cancelada',
+          'cancellation_status': cancellationStatus,
+          'cancellation_penalty_amount': eval.penaltyAmount,
+          'refund_amount': eval.refundAmount,
+          'cancelled_at': DateTime.now().toIso8601String(),
+          'cancellation_reason': defaultReason,
+        }).eq('id', bookingId);
+      } catch (_) {
+        await supabaseClient.from('reservas').update({
+          'estado': 'Cancelada',
+        }).eq('id', bookingId);
+      }
+
+      // Liberar habitación asignada inmediatamente (Disponible)
+      if (habitacionId != null) {
+        try {
+          await supabaseClient.from('habitaciones').update({
+            'estado': 'Disponible',
+          }).eq('id', habitacionId);
+        } catch (_) {}
+      }
+
+      // Actualizar folio
+      try {
+        await supabaseClient.from('folios').update({
+          'estado': eval.isPenalty ? 'Cerrado' : 'Cancelado',
+        }).eq('reserva_id', bookingId);
+      } catch (_) {}
+
+      // Sincronizar en tiempo real
+      try {
+        final channel = supabaseClient.channel('hotel_universal_sync');
+        await channel.sendBroadcastMessage(
+          event: 'hotel_data_updated',
+          payload: {'table': 'reservas', 'id': bookingId, 'action': 'cancelled'},
+        );
+      } catch (_) {}
+
+      return true;
+    } catch (e) {
+      throw Exception('Error al cancelar la reserva: ${e.toString()}');
     }
   }
 }

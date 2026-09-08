@@ -11,7 +11,9 @@ import 'package:trekos_m_hotel/core/theme/app_theme.dart';
 import 'package:trekos_m_hotel/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:trekos_m_hotel/features/auth/presentation/pages/login_page.dart';
 import 'package:trekos_m_hotel/features/hotel_search/domain/entities/booking.dart';
+import 'package:trekos_m_hotel/features/hotel_search/domain/entities/cancellation_evaluation.dart';
 import 'package:trekos_m_hotel/features/hotel_search/domain/entities/room.dart';
+import 'package:trekos_m_hotel/features/hotel_search/domain/repository/hotel_repository.dart';
 import 'package:trekos_m_hotel/features/hotel_search/presentation/bloc/hotel_bloc.dart';
 import 'package:trekos_m_hotel/features/hotel_search/presentation/bloc/hotel_event.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
@@ -2474,51 +2476,86 @@ class _BookingCardItemState extends State<BookingCardItem> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 6,
                     children: [
-                      Flexible(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.bookmark_added_rounded, size: 20, color: AppTheme.primaryBlue),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                booking.codigoReserva,
-                                style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: AppTheme.primaryDark,
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.bookmark_added_rounded, size: 20, color: AppTheme.primaryBlue),
+                          const SizedBox(width: 8),
+                          Text(
+                            booking.codigoReserva,
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: AppTheme.primaryDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        alignment: WrapAlignment.end,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: booking.isFlexibleRate ? const Color(0xFFF0FDF4) : const Color(0xFFFFFBEB),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: booking.isFlexibleRate ? const Color(0xFF86EFAC) : const Color(0xFFFDE68A),
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: booking.estado.toLowerCase() == 'confirmada'
-                              ? const Color(0xFFDCFCE7)
-                              : const Color(0xFFE0F2FE),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: booking.estado.toLowerCase() == 'confirmada'
-                                ? const Color(0xFF16A34A).withValues(alpha: 0.3)
-                                : const Color(0xFF2563EB).withValues(alpha: 0.3),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  booking.isFlexibleRate ? Icons.shield_outlined : Icons.lock_clock_outlined,
+                                  size: 11,
+                                  color: booking.isFlexibleRate ? const Color(0xFF16A34A) : const Color(0xFFD97706),
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  booking.isFlexibleRate ? 'Flexible' : 'No Reembolsable',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: booking.isFlexibleRate ? const Color(0xFF166534) : const Color(0xFFB45309),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          booking.estado,
-                          style: TextStyle(
-                            color: booking.estado.toLowerCase() == 'confirmada' ? const Color(0xFF16A34A) : const Color(0xFF2563EB),
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: booking.estado.toLowerCase() == 'confirmada'
+                                  ? const Color(0xFFDCFCE7)
+                                  : (booking.isCancelled ? const Color(0xFFFEE2E2) : const Color(0xFFE0F2FE)),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: booking.estado.toLowerCase() == 'confirmada'
+                                    ? const Color(0xFF16A34A).withValues(alpha: 0.3)
+                                    : (booking.isCancelled ? const Color(0xFFDC2626).withValues(alpha: 0.3) : const Color(0xFF2563EB).withValues(alpha: 0.3)),
+                              ),
+                            ),
+                            child: Text(
+                              booking.estado,
+                              style: TextStyle(
+                                color: booking.estado.toLowerCase() == 'confirmada'
+                                    ? const Color(0xFF16A34A)
+                                    : (booking.isCancelled ? const Color(0xFFDC2626) : const Color(0xFF2563EB)),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ],
                   ),
@@ -2844,6 +2881,31 @@ class _BookingCardItemState extends State<BookingCardItem> {
                                 ),
                               ],
                             ),
+                            if (!booking.isCancelled) ...[
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 40,
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFFDC2626),
+                                    side: const BorderSide(color: Color(0xFFFCA5A5)),
+                                    backgroundColor: const Color(0xFFFEF2F2),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                                  ),
+                                  onPressed: () => _handleCancellationRequest(context, booking),
+                                  icon: const Icon(Icons.cancel_outlined, size: 16, color: Color(0xFFDC2626)),
+                                  label: const FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      'Cancelar Reserva',
+                                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
 
                           ],
                         ),
@@ -3251,6 +3313,317 @@ class _BookingCardItemState extends State<BookingCardItem> {
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _handleCancellationRequest(BuildContext context, Booking booking) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: AppTheme.primaryBlue),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  'Consultando políticas de cancelación...',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    CancellationEvaluation? eval;
+    try {
+      final repo = serviceLocator<HotelRepository>();
+      final result = await repo.evaluateCancellation(booking.id);
+      result.fold(
+        (failure) {
+          debugPrint('Error en evaluateCancellation: ${failure.message}');
+        },
+        (data) {
+          eval = data;
+        },
+      );
+    } catch (e) {
+      debugPrint('Fallo al evaluar con repo: $e');
+    }
+
+    if (!context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); // Cierra loading
+
+    if (eval == null) {
+      final hoursDiff = booking.hoursUntilCheckIn;
+      final canFree = booking.isFreeCancellationEligible;
+      final totalPagos = booking.folioTotalPagos;
+      final formattedMonto = '${widget.currencyFormat.format(totalPagos)} Gs.';
+      eval = CancellationEvaluation(
+        bookingId: booking.id,
+        ratePlanType: booking.ratePlanType,
+        hoursRemaining: hoursDiff,
+        totalPaid: totalPagos,
+        canCancelFree: canFree,
+        isPenalty: !canFree,
+        refundAmount: canFree ? totalPagos : 0.0,
+        penaltyAmount: !canFree ? totalPagos : 0.0,
+        message: canFree
+            ? 'Tu tarifa permite cancelación gratuita. El monto de $formattedMonto será reembolsado.'
+            : 'Atención: Tu plan de tarifa (${booking.ratePlanType}) no admite devoluciones. Al cancelar, perderás el monto abonado de $formattedMonto. ¿Deseas proceder?',
+      );
+    }
+
+    if (!context.mounted) return;
+    _showCancellationWarningDialog(context, booking, eval!);
+  }
+
+  void _showCancellationWarningDialog(BuildContext context, Booking booking, CancellationEvaluation eval) {
+    final currencyFormat = widget.currencyFormat;
+    final isFree = eval.canCancelFree;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogCtx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    color: isFree ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isFree ? Icons.check_circle_outline_rounded : Icons.warning_amber_rounded,
+                    color: isFree ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                    size: 32,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              Center(
+                child: Text(
+                  isFree ? 'Cancelación Gratuita' : 'Penalidad de Cancelación',
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isFree ? const Color(0xFF166534) : const Color(0xFF991B1B),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 4),
+
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isFree ? const Color(0xFFF0FDF4) : const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isFree ? const Color(0xFF86EFAC) : const Color(0xFFFDE68A),
+                    ),
+                  ),
+                  child: Text(
+                    'Plan: ${eval.ratePlanType}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: isFree ? const Color(0xFF166534) : const Color(0xFFB45309),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isFree ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isFree ? const Color(0xFFBBF7D0) : const Color(0xFFFECACA),
+                    width: 1.2,
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      isFree ? Icons.info_outline_rounded : Icons.error_outline_rounded,
+                      size: 20,
+                      color: isFree ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        isFree
+                            ? 'Tu tarifa permite cancelación gratuita. El monto de ${currencyFormat.format(eval.refundAmount)} Gs. será reembolsado.'
+                            : 'Atención: Tu plan de tarifa (${eval.ratePlanType}) no admite devoluciones. Al cancelar, perderás el monto abonado de ${currencyFormat.format(eval.penaltyAmount)} Gs. ¿Deseas proceder?',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: isFree ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              Text(
+                'Detalle de la Solicitud:',
+                style: GoogleFonts.poppins(fontSize: 12.5, fontWeight: FontWeight.bold, color: AppTheme.primaryDark),
+              ),
+              const SizedBox(height: 8),
+
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  children: [
+                    _buildModalSummaryRow('Código de Reserva:', booking.codigoReserva),
+                    const Divider(height: 12, color: Color(0xFFE2E8F0)),
+                    _buildModalSummaryRow('Habitación:', 'Hab. ${booking.habitacionNumero} (${booking.habitacionTipo})'),
+                    const Divider(height: 12, color: Color(0xFFE2E8F0)),
+                    _buildModalSummaryRow('Fecha Check-in:', '${booking.checkInPrevisto} (14:00 hs)'),
+                    const Divider(height: 12, color: Color(0xFFE2E8F0)),
+                    _buildModalSummaryRow(
+                      'Antelación Actual:',
+                      '${eval.hoursRemaining > 0 ? eval.hoursRemaining.toStringAsFixed(1) : "0"} hs (${isFree ? "> 24 hs" : "<= 24 hs"})',
+                      color: isFree ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                    ),
+                    const Divider(height: 12, color: Color(0xFFE2E8F0)),
+                    _buildModalSummaryRow('Total Abonado:', '${currencyFormat.format(eval.totalPaid)} Gs.'),
+                    const Divider(height: 12, color: Color(0xFFE2E8F0)),
+                    _buildModalSummaryRow(
+                      isFree ? 'Penalidad Hotelera:' : 'Penalidad Retenida:',
+                      isFree ? '0 Gs. (0%)' : '100% (${currencyFormat.format(eval.penaltyAmount)} Gs.)',
+                      color: isFree ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                      isBold: true,
+                    ),
+                    const Divider(height: 12, color: Color(0xFFE2E8F0)),
+                    _buildModalSummaryRow(
+                      'Monto a Devolver:',
+                      '${currencyFormat.format(eval.refundAmount)} Gs.',
+                      color: isFree ? const Color(0xFF16A34A) : const Color(0xFF64748B),
+                      isBold: true,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF475569),
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(dialogCtx),
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text('Conservar Reserva', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: isFree ? const Color(0xFF0284C7) : const Color(0xFFDC2626),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(dialogCtx);
+                        _confirmAndExecuteCancellation(context, booking);
+                      },
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          isFree ? 'Confirmar Cancelación' : 'Aceptar y Cancelar',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModalSummaryRow(String label, String value, {Color? color, bool isBold = false}) {
+    return _buildVoucherDialogRow(label, value, color: color, isBold: isBold);
+  }
+
+  void _confirmAndExecuteCancellation(BuildContext context, Booking booking) {
+    context.read<HotelBloc>().add(
+          HotelCancelBookingRequested(
+            bookingId: booking.id,
+            guestId: booking.guestId,
+            reason: 'Cancelada por el huésped desde la App Móvil',
+          ),
+        );
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF4ADE80), size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Tu reserva #${booking.codigoReserva} ha sido cancelada. La habitación quedó liberada en el sistema.',
+                style: const TextStyle(fontSize: 12.5),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF0F172A),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
     );
   }
 }

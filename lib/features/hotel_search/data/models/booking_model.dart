@@ -21,6 +21,11 @@ class BookingModel extends Booking {
     super.totalConsumos = 0.0,
     super.totalServicios = 0.0,
     super.totalCargos = 0.0,
+    super.ratePlanType = 'Flexible',
+    super.cancellationStatus,
+    super.cancellationPenaltyAmount,
+    super.refundAmount,
+    super.cancelledAt,
   });
 
   factory BookingModel.fromJson(Map<String, dynamic> json) {
@@ -49,6 +54,9 @@ class BookingModel extends Booking {
     final totalCargos = parseDouble(folio?['total_cargos']);
     final saldoPendiente = parseDouble(folio?['saldo_pendiente'], totalAlojamiento);
 
+    final rawPlan = json['rate_plan_type'] ?? json['rate_plan'] ?? json['plan_tarifa'] ?? 'Flexible';
+    final ratePlanType = rawPlan.toString().trim().isEmpty ? 'Flexible' : rawPlan.toString().trim();
+
     return BookingModel(
       id: json['id']?.toString() ?? '',
       codigoReserva: json['codigo_reserva'] ?? 'RES-000',
@@ -73,6 +81,15 @@ class BookingModel extends Booking {
       totalConsumos: totalConsumos,
       totalServicios: totalServicios,
       totalCargos: totalCargos,
+      ratePlanType: ratePlanType,
+      cancellationStatus: json['cancellation_status']?.toString(),
+      cancellationPenaltyAmount: json['cancellation_penalty_amount'] != null
+          ? parseDouble(json['cancellation_penalty_amount'])
+          : null,
+      refundAmount: json['refund_amount'] != null
+          ? parseDouble(json['refund_amount'])
+          : null,
+      cancelledAt: json['cancelled_at']?.toString(),
     );
   }
 }

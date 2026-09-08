@@ -19,6 +19,7 @@ class HotelBloc extends Bloc<HotelEvent, HotelState> {
     on<HotelResetFilters>(_onResetFilters);
     on<HotelFetchGuestBookings>(_onFetchGuestBookings);
     on<HotelCreateBookingRequested>(_onCreateBookingRequested);
+    on<HotelCancelBookingRequested>(_onCancelBookingRequested);
     on<HotelRegisterPaymentRequested>(_onRegisterPaymentRequested);
 
     // Heartbeat auto-sync global a nivel de BLoC cada 3 segundos (inmune a navegación de pantallas)
@@ -171,6 +172,7 @@ class HotelBloc extends Bloc<HotelEvent, HotelState> {
       montoTotal: event.montoTotal,
       cantidadHuespedes: event.cantidadHuespedes,
       acompanantes: event.acompanantes,
+      ratePlanType: event.ratePlanType,
     );
 
     result.fold(
@@ -221,6 +223,26 @@ class HotelBloc extends Bloc<HotelEvent, HotelState> {
           isSubmittingPayment: false,
           paymentSuccess: true,
         ));
+        add(HotelFetchGuestBookings(event.guestId));
+      },
+    );
+  }
+
+  Future<void> _onCancelBookingRequested(
+    HotelCancelBookingRequested event,
+    Emitter<HotelState> emit,
+  ) async {
+    final result = await hotelRepository.cancelBooking(
+      event.bookingId,
+      reason: event.reason,
+    );
+
+    result.fold(
+      (failure) => emit(state.copyWith(
+        errorMessage: failure.message,
+      )),
+      (success) {
+        add(HotelFetchRooms());
         add(HotelFetchGuestBookings(event.guestId));
       },
     );

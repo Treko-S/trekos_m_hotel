@@ -3,6 +3,7 @@ import 'package:fpdart/fpdart.dart';
 import 'package:intl/intl.dart';
 import 'package:trekos_m_hotel/core/error/failures.dart';
 import 'package:trekos_m_hotel/features/hotel_search/domain/entities/booking.dart';
+import 'package:trekos_m_hotel/features/hotel_search/domain/entities/cancellation_evaluation.dart';
 import 'package:trekos_m_hotel/features/hotel_search/domain/entities/companion_guest.dart';
 import 'package:trekos_m_hotel/features/hotel_search/domain/entities/room.dart';
 import 'package:trekos_m_hotel/features/hotel_search/domain/repository/hotel_repository.dart';
@@ -29,6 +30,7 @@ class FakeHotelRepository implements HotelRepository {
     required double montoTotal,
     required int cantidadHuespedes,
     List<CompanionGuest> acompanantes = const [],
+    String ratePlanType = 'Flexible',
   }) async =>
       Right(Booking(
         id: '1',
@@ -48,6 +50,24 @@ class FakeHotelRepository implements HotelRepository {
         folioTotalPagos: 0.0,
         folioEstado: 'Abierto',
       ));
+
+  @override
+  Future<Either<Failure, CancellationEvaluation>> evaluateCancellation(String bookingId) async =>
+      Right(CancellationEvaluation(
+        bookingId: bookingId,
+        ratePlanType: 'Flexible',
+        hoursRemaining: 48.0,
+        totalPaid: 0.0,
+        canCancelFree: true,
+        isPenalty: false,
+        refundAmount: 0.0,
+        penaltyAmount: 0.0,
+        message: 'Cancelación gratuita disponible.',
+      ));
+
+  @override
+  Future<Either<Failure, bool>> cancelBooking(String bookingId, {String? reason}) async =>
+      const Right(true);
 
   @override
   Future<Either<Failure, bool>> registerFolioPayment({

@@ -8,6 +8,7 @@ import 'package:trekos_m_hotel/features/auth/domain/entities/user.dart';
 import 'package:trekos_m_hotel/features/auth/domain/repository/auth_repository.dart';
 import 'package:trekos_m_hotel/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:trekos_m_hotel/features/hotel_search/domain/entities/booking.dart';
+import 'package:trekos_m_hotel/features/hotel_search/domain/entities/cancellation_evaluation.dart';
 import 'package:trekos_m_hotel/features/hotel_search/domain/entities/companion_guest.dart';
 import 'package:trekos_m_hotel/features/hotel_search/domain/entities/room.dart';
 import 'package:trekos_m_hotel/features/hotel_search/domain/repository/hotel_repository.dart';
@@ -37,6 +38,7 @@ class MockHotelRepositoryForPayment implements HotelRepository {
     required double montoTotal,
     required int cantidadHuespedes,
     List<CompanionGuest> acompanantes = const [],
+    String ratePlanType = 'Flexible',
   }) async =>
       Right(Booking(
         id: '1',
@@ -55,7 +57,26 @@ class MockHotelRepositoryForPayment implements HotelRepository {
         folioSaldoPendiente: montoTotal,
         folioTotalPagos: 0.0,
         folioEstado: 'Abierto',
+        ratePlanType: ratePlanType,
       ));
+
+  @override
+  Future<Either<Failure, CancellationEvaluation>> evaluateCancellation(String bookingId) async =>
+      Right(CancellationEvaluation(
+        bookingId: bookingId,
+        ratePlanType: 'Flexible',
+        hoursRemaining: 48.0,
+        totalPaid: 0.0,
+        canCancelFree: true,
+        isPenalty: false,
+        refundAmount: 0.0,
+        penaltyAmount: 0.0,
+        message: 'Cancelación gratuita disponible.',
+      ));
+
+  @override
+  Future<Either<Failure, bool>> cancelBooking(String bookingId, {String? reason}) async =>
+      const Right(true);
 
   @override
   Future<Either<Failure, bool>> registerFolioPayment({

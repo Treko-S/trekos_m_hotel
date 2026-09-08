@@ -1096,6 +1096,7 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
   }
 
   void _proceedWithBookingCreation() {
+    final ratePlanString = _selectedRatePlan == 'promo' ? 'No Reembolsable' : 'Flexible';
     context.read<HotelBloc>().add(
           HotelCreateBookingRequested(
             habitacionId: widget.room.id,
@@ -1105,6 +1106,7 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
             montoTotal: _totalPrice,
             cantidadHuespedes: _totalGuests,
             acompanantes: _companions,
+            ratePlanType: ratePlanString,
           ),
         );
   }

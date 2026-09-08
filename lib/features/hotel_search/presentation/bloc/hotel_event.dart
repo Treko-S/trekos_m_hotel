@@ -60,6 +60,7 @@ class HotelCreateBookingRequested extends HotelEvent {
   final double montoTotal;
   final int cantidadHuespedes;
   final List<CompanionGuest> acompanantes;
+  final String ratePlanType;
 
   const HotelCreateBookingRequested({
     required this.habitacionId,
@@ -69,6 +70,7 @@ class HotelCreateBookingRequested extends HotelEvent {
     required this.montoTotal,
     required this.cantidadHuespedes,
     this.acompanantes = const [],
+    this.ratePlanType = 'Flexible',
   });
 
   @override
@@ -80,7 +82,23 @@ class HotelCreateBookingRequested extends HotelEvent {
         montoTotal,
         cantidadHuespedes,
         acompanantes,
+        ratePlanType,
       ];
+}
+
+class HotelCancelBookingRequested extends HotelEvent {
+  final String bookingId;
+  final String guestId;
+  final String? reason;
+
+  const HotelCancelBookingRequested({
+    required this.bookingId,
+    required this.guestId,
+    this.reason,
+  });
+
+  @override
+  List<Object?> get props => [bookingId, guestId, reason];
 }
 
 class HotelRegisterPaymentRequested extends HotelEvent {
