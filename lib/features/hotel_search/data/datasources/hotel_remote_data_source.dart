@@ -42,13 +42,36 @@ class HotelRemoteDataSourceImpl implements HotelRemoteDataSource {
   @override
   Future<List<RoomModel>> getRooms() async {
     try {
+      // 1. Obtener multiplicador de temporada vigente hoy si existe
+      double seasonMultiplier = 1.0;
+      try {
+        final todayStr = DateTime.now().toIso8601String().split('T')[0];
+        final seasonRes = await supabaseClient
+            .from('temporadas')
+            .select()
+            .lte('fecha_inicio', todayStr)
+            .gte('fecha_fin', todayStr)
+            .limit(1)
+            .maybeSingle();
+        if (seasonRes != null) {
+          seasonMultiplier = ((seasonRes['multiplicador_tarifa'] ?? seasonRes['multiplicador']) as num?)?.toDouble() ?? 1.0;
+        }
+      } catch (_) {}
+
       final response = await supabaseClient
           .from('habitaciones')
           .select('*, tipos_habitacion(*), reservas(*)')
           .order('id', ascending: true);
 
       final List<dynamic> data = response as List<dynamic>;
-      return data.map((json) => RoomModel.fromJson(json)).toList();
+      return data.map((json) {
+        if (seasonMultiplier != 1.0) {
+          final map = Map<String, dynamic>.from(json as Map);
+          map['season_multiplier'] = seasonMultiplier;
+          return RoomModel.fromJson(map);
+        }
+        return RoomModel.fromJson(json);
+      }).toList();
     } catch (e) {
       throw Exception('Error al cargar habitaciones: ${e.toString()}');
     }

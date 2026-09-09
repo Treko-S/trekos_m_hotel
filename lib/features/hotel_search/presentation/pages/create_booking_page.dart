@@ -111,7 +111,7 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
     try {
       final supabase = Supabase.instance.client;
       // 1. Cargar temporadas vigentes para la fecha seleccionada
-      final seasonsRes = await supabase.from('temporadas').select().eq('activo', true);
+      final seasonsRes = await supabase.from('temporadas').select();
       if (seasonsRes.isNotEmpty) {
         final checkInStr = DateFormat('yyyy-MM-dd').format(_checkIn);
         for (final s in seasonsRes) {
@@ -119,7 +119,7 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
           final end = s['fecha_fin']?.toString();
           if (start != null && end != null) {
             if (checkInStr.compareTo(start) >= 0 && checkInStr.compareTo(end) <= 0) {
-              final mult = (s['multiplicador'] as num?)?.toDouble() ?? 1.0;
+              final mult = ((s['multiplicador_tarifa'] ?? s['multiplicador']) as num?)?.toDouble() ?? 1.0;
               if (mounted) {
                 setState(() {
                   _seasonMultiplier = mult;

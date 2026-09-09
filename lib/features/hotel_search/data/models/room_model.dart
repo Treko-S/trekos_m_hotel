@@ -149,7 +149,7 @@ class RoomModel extends Room {
       tipoNombre: tipo['nombre']?.toString() ?? 'Habitación',
       tipoDescripcion: tipo['descripcion']?.toString() ?? '',
       capacidad: (tipo['capacidad_personas'] as num?)?.toInt() ?? 1,
-      precioBase: ((caracMap['precio_personalizado'] ?? tipo['precio_base_noche']) as num?)?.toDouble() ?? 150000.0,
+      precioBase: (((caracMap['precio_personalizado'] ?? tipo['precio_base_noche']) as num?)?.toDouble() ?? 150000.0) * ((json['season_multiplier'] as num?)?.toDouble() ?? 1.0),
       piso: (json['piso'] as num?)?.toInt() ?? 1,
       estado: calculatedStatus,
       caracteristicas: caracMap.isNotEmpty
