@@ -26,6 +26,19 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'reservas' AND column_name = 'canal_reserva') THEN
         ALTER TABLE public.reservas ADD COLUMN canal_reserva TEXT DEFAULT 'Mostrador / Recepción';
     END IF;
+
+    -- Actualizar check constraint para admitir canales expandidos
+    BEGIN
+        ALTER TABLE public.reservas DROP CONSTRAINT IF EXISTS reservas_canal_venta_check;
+        ALTER TABLE public.reservas ADD CONSTRAINT reservas_canal_venta_check 
+            CHECK (canal_venta IN (
+                'Recepción', 'WhatsApp', 'Web', 'App Móvil', 'OTA',
+                'Recepción / Walk-in', 'WhatsApp Corporativo', 'Reserva Telefónica', 
+                'Web Administrativa', 'Booking.com', 'Airbnb', 'Mostrador / Recepción'
+            ));
+    EXCEPTION WHEN OTHERS THEN
+        NULL;
+    END;
 END $$;
 
 -- 2. TABLA SINGLETON: CONFIGURACIÓN GENERAL DEL HOTEL (TAREA 16)
