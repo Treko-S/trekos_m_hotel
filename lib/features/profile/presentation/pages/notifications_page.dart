@@ -9,6 +9,7 @@ import 'package:trekos_m_hotel/core/theme/app_theme.dart';
 import 'package:trekos_m_hotel/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:trekos_m_hotel/features/auth/presentation/pages/login_page.dart';
 import 'package:trekos_m_hotel/features/hotel_search/presentation/bloc/hotel_bloc.dart';
+import 'package:trekos_m_hotel/core/services/notification_service.dart';
 import 'package:trekos_m_hotel/features/profile/presentation/pages/my_invoices_page.dart';
 
 class HotelNotificationItem {
@@ -204,6 +205,38 @@ class _NotificationsPageState extends State<NotificationsPage> {
       } catch (_) {}
     }
 
+    // 3. Notificaciones Locales / Broadcast Almacenadas en NotificationService
+    try {
+      final storedList = await NotificationService().getStoredNotifications();
+      final now = DateTime.now();
+      for (var s in storedList) {
+        // Evitar duplicados si ya existe un item con el mismo ID
+        if (items.any((it) => it.id == s.id)) continue;
+
+        String timeStr;
+        if (now.difference(s.createdAt).inDays == 0 && now.day == s.createdAt.day) {
+          timeStr = 'Hoy ${DateFormat('HH:mm').format(s.createdAt)}';
+        } else if (now.difference(s.createdAt).inDays <= 1) {
+          timeStr = 'Ayer ${DateFormat('HH:mm').format(s.createdAt)}';
+        } else {
+          timeStr = DateFormat('dd/MM HH:mm').format(s.createdAt);
+        }
+
+        items.insert(
+          0,
+          HotelNotificationItem(
+            id: s.id,
+            title: s.title,
+            description: s.body,
+            time: timeStr,
+            type: s.type == 'cancel' || s.type == 'booking' || s.type == 'folio' ? 'stay' : s.type,
+            isRead: s.isRead || readIds.contains(s.id),
+            data: s.data,
+          ),
+        );
+      }
+    } catch (_) {}
+
     if (mounted) {
       setState(() {
         _notifications = items;
@@ -220,6 +253,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
     final allIds = _notifications.map((n) => n.id).toList();
     await storage.write(key: storageKey, value: jsonEncode(allIds));
+    await NotificationService().markAllAsRead();
 
     if (mounted) {
       setState(() {
@@ -252,6 +286,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
           : {};
       readIds.add(item.id);
       await storage.write(key: storageKey, value: jsonEncode(readIds.toList()));
+      await NotificationService().markAsRead(item.id);
     }
 
     if (!mounted) return;

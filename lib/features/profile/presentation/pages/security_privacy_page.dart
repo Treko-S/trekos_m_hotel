@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/services/biometric_service.dart';
 import '../../../auth/presentation/bloc/auth_bloc.dart';
 
 class SecurityPrivacyPage extends StatefulWidget {
@@ -13,7 +14,22 @@ class SecurityPrivacyPage extends StatefulWidget {
 }
 
 class _SecurityPrivacyPageState extends State<SecurityPrivacyPage> {
-  bool _biometricEnabled = true;
+  bool _biometricEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBiometricStatus();
+  }
+
+  Future<void> _loadBiometricStatus() async {
+    final enabled = await BiometricService().isBiometricEnabled();
+    if (mounted) {
+      setState(() {
+        _biometricEnabled = enabled;
+      });
+    }
+  }
 
   void _showChangePasswordModal() {
     final formKey = GlobalKey<FormState>();
@@ -305,18 +321,59 @@ class _SecurityPrivacyPageState extends State<SecurityPrivacyPage> {
                   // 2. Acceso con Huella Dactilar
                   SwitchListTile(
                     value: _biometricEnabled,
-                    onChanged: (v) {
-                      setState(() => _biometricEnabled = v);
-                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            v ? 'Acceso biométrico por huella dactilar activado' : 'Acceso biométrico desactivado',
-                          ),
-                          duration: const Duration(seconds: 2),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
+                    onChanged: (v) async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      if (v) {
+                        final available = await BiometricService().isBiometricAvailable();
+                        if (!available) {
+                          if (mounted) {
+                            messenger.hideCurrentSnackBar();
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('El dispositivo no cuenta con sensor biométrico o huella dactilar configurada.'),
+                                duration: Duration(seconds: 3),
+                                behavior: SnackBarBehavior.floating,
+                                backgroundColor: Color(0xFFDC2626),
+                              ),
+                            );
+                          }
+                          return;
+                        }
+
+                        final authenticated = await BiometricService().authenticate(
+                          reason: 'Confirma tu huella digital para activar el acceso biométrico en Hotel 3Vagos',
+                        );
+
+                        if (authenticated) {
+                          await BiometricService().setBiometricEnabled(true);
+                          if (mounted) {
+                            setState(() => _biometricEnabled = true);
+                            messenger.hideCurrentSnackBar();
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('✓ Acceso con huella dactilar activado exitosamente.'),
+                                duration: Duration(seconds: 2),
+                                behavior: SnackBarBehavior.floating,
+                                backgroundColor: Color(0xFF16A34A),
+                              ),
+                            );
+                          }
+                        }
+                      } else {
+                        await BiometricService().setBiometricEnabled(false);
+                        if (mounted) {
+                          setState(() => _biometricEnabled = false);
+                          messenger.hideCurrentSnackBar();
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('Acceso con huella dactilar desactivado.'),
+                              duration: Duration(seconds: 2),
+                              behavior: SnackBarBehavior.floating,
+                              backgroundColor: AppTheme.navyLuxury,
+                            ),
+                          );
+                        }
+                      }
                     },
                     activeThumbColor: AppTheme.navyLuxury,
                     activeTrackColor: AppTheme.goldLuxury.withValues(alpha: 0.4),

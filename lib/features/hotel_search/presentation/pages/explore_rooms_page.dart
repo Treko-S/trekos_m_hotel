@@ -160,7 +160,38 @@ class _ExploreRoomsPageState extends State<ExploreRoomsPage> with WidgetsBinding
               debugPrint('⚡ [Broadcast Instantáneo] Notificación de cambio recibida: $payload');
               _syncAllData(silent: true);
 
-              if (payload['action'] == 'cancel') {
+              final action = payload['action']?.toString() ?? '';
+              final table = payload['table']?.toString() ?? '';
+
+              // 1. Facturas emitidas desde Caja / Recepción
+              if (table == 'facturas' || action.contains('invoice')) {
+                try {
+                  final invNum = payload['invoiceNumber']?.toString() ?? payload['numero_factura']?.toString() ?? 'SET';
+                  final amount = payload['amount'] ?? payload['montoTotal'] ?? payload['monto_total'];
+                  final currencyFmt = NumberFormat('#,###', 'es_PY');
+                  final amountStr = (amount is num && amount > 0)
+                      ? '${currencyFmt.format(amount.round()).replaceAll(',', '.')} Gs.'
+                      : '';
+
+                  NotificationService().notifyUser(
+                    title: 'Hotel 3Vagos - Factura Legal SET #$invNum',
+                    body: amountStr.isNotEmpty
+                        ? 'Tu factura oficial por $amountStr ha sido emitida. Ya está disponible para descargar en PDF desde la App.'
+                        : 'Tu factura oficial ha sido emitida en recepción. Ya está disponible para descargar en PDF desde la App.',
+                    type: 'invoice',
+                    prefKey: 'alert_pref_invoice_app_mail',
+                    data: {
+                      'invoice_number': invNum,
+                      'amount': amount,
+                    },
+                  );
+                } catch (e) {
+                  debugPrint('⚠️ Error al notificar factura: $e');
+                }
+              }
+
+              // 2. Cancelaciones de reserva con reembolso
+              else if (action == 'cancel') {
                 try {
                   final bookingCode = payload['bookingCode']?.toString() ?? 'Reserva';
                   final reason = payload['reason']?.toString() ?? 'Cancelación de reserva';
@@ -170,16 +201,63 @@ class _ExploreRoomsPageState extends State<ExploreRoomsPage> with WidgetsBinding
                       ? '${currencyFmt.format(refund.round()).replaceAll(',', '.')} Gs.'
                       : (refund != null && refund.toString().isNotEmpty && refund.toString() != '0' ? '$refund Gs.' : null);
 
-                  NotificationService().showNotification(
-                    id: DateTime.now().millisecondsSinceEpoch % 100000,
+                  NotificationService().notifyUser(
                     title: 'Hotel 3Vagos - Cancelación #$bookingCode',
                     body: refundStr != null
                         ? 'Tu reserva $bookingCode ha sido cancelada. ✓ Reembolso aprobado de $refundStr por tu adelanto. Motivo: $reason'
                         : 'Tu reserva $bookingCode ha sido cancelada. Motivo: $reason',
+                    type: 'cancel',
+                    prefKey: 'alert_pref_checkout',
+                    data: {
+                      'booking_code': bookingCode,
+                      'refund': refund,
+                      'reason': reason,
+                    },
                   );
                 } catch (e) {
                   debugPrint('⚠️ Error al mostrar notificación local: $e');
                 }
+              }
+
+              // 3. Check-in confirmado en Front Desk
+              else if (action == 'checkin') {
+                try {
+                  final roomId = payload['roomId']?.toString() ?? '';
+                  NotificationService().notifyUser(
+                    title: 'Hotel 3Vagos - ¡Bienvenido! Check-in Realizado',
+                    body: 'Tu ingreso ha sido registrado exitosamente en Front Desk. Tu llave ha sido entregada.',
+                    type: 'stay',
+                    prefKey: 'alert_pref_checkin',
+                    data: {'room_id': roomId},
+                  );
+                } catch (_) {}
+              }
+
+              // 4. Consumos o cargos al Folio
+              else if (action == 'charge' || (table == 'folios' && action == 'payment')) {
+                try {
+                  NotificationService().notifyUser(
+                    title: 'Hotel 3Vagos - Consumo Registrado',
+                    body: 'Se ha registrado un movimiento en la cuenta de tu habitación. Consulta el detalle en la App.',
+                    type: 'folio',
+                    prefKey: 'alert_pref_folio',
+                  );
+                } catch (_) {}
+              }
+
+              // 5. Habitación lista (Limpieza completada)
+              else if (action == 'ready') {
+                try {
+                  final numHab = payload['numero']?.toString() ?? '';
+                  NotificationService().notifyUser(
+                    title: 'Hotel 3Vagos - ¡Tu Habitación está Lista!',
+                    body: numHab.isNotEmpty
+                        ? 'La habitación $numHab ha completado su inspección y está 100% lista para ingresar.'
+                        : 'Tu habitación ha completado su inspección y está lista para ingresar.',
+                    type: 'stay',
+                    prefKey: 'alert_pref_roomready',
+                  );
+                } catch (_) {}
               }
             },
           )
@@ -212,6 +290,32 @@ class _ExploreRoomsPageState extends State<ExploreRoomsPage> with WidgetsBinding
             schema: 'public',
             table: 'acompanantes',
             callback: (payload) => _onRealtimeDataChanged('acompanantes'),
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'facturas',
+            callback: (payload) {
+              _onRealtimeDataChanged('facturas');
+              if (payload.eventType == PostgresChangeEvent.insert) {
+                final rec = payload.newRecord;
+                final invNum = rec['numero_factura']?.toString() ?? 'SET';
+                final total = rec['monto_total'];
+                final currencyFmt = NumberFormat('#,###', 'es_PY');
+                final amountStr = (total is num && total > 0)
+                    ? '${currencyFmt.format(total.round()).replaceAll(',', '.')} Gs.'
+                    : '';
+                NotificationService().notifyUser(
+                  title: 'Hotel 3Vagos - Factura Legal SET #$invNum',
+                  body: amountStr.isNotEmpty
+                      ? 'Tu factura oficial por $amountStr ha sido emitida. Ya puedes descargar tu comprobante PDF.'
+                      : 'Tu factura oficial ha sido emitida en recepción. Ya puedes descargar tu comprobante PDF.',
+                  type: 'invoice',
+                  prefKey: 'alert_pref_invoice_app_mail',
+                  data: {'invoice_number': invNum},
+                );
+              }
+            },
           )
           .subscribe((status, [error]) {
             debugPrint('📡 [Realtime Flutter] Canal hotel_universal_sync status: $status, error: $error');
@@ -414,43 +518,50 @@ class _ExploreRoomsPageState extends State<ExploreRoomsPage> with WidgetsBinding
                   ),
                 ],
               ),
-              // Campana de notificaciones con badge interactivo
-              Stack(
-                alignment: Alignment.topRight,
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.notifications_none_rounded, color: AppTheme.primaryBlue, size: 22),
-                      onPressed: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const NotificationsPage()),
-                        );
-                        if (mounted) {
-                          _checkUnreadNotifications();
-                        }
-                      },
-                    ),
-                  ),
-                  if (_unreadNotificationsCount > 0)
-                    Positioned(
-                      top: 10,
-                      right: 12,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFEF4444),
+              // Campana de notificaciones con badge interactivo en vivo
+              ValueListenableBuilder<int>(
+                valueListenable: NotificationService().unreadCountNotifier,
+                builder: (context, storedUnread, _) {
+                  final totalUnread = _unreadNotificationsCount + storedUnread;
+                  return Stack(
+                    alignment: Alignment.topRight,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
                           shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: IconButton(
+                          icon: const Icon(Icons.notifications_none_rounded, color: AppTheme.primaryBlue, size: 22),
+                          onPressed: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const NotificationsPage()),
+                            );
+                            if (mounted) {
+                              _checkUnreadNotifications();
+                              await NotificationService().refreshUnreadCount();
+                            }
+                          },
                         ),
                       ),
-                    ),
-                ],
+                      if (totalUnread > 0)
+                        Positioned(
+                          top: 10,
+                          right: 12,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFEF4444),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
               ),
             ],
           ),

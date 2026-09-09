@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:trekos_m_hotel/core/services/email_notification_service.dart';
+import 'package:trekos_m_hotel/core/services/notification_service.dart';
 import 'package:trekos_m_hotel/core/services/payment_cards_service.dart';
 import 'package:trekos_m_hotel/core/theme/app_theme.dart';
 import 'package:trekos_m_hotel/features/auth/presentation/bloc/auth_bloc.dart';
@@ -477,6 +478,21 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
       remainingAmount: remainingBalance,
       paymentMethod: methodName,
       transactionRef: voucherCode,
+    );
+
+    // Disparo de notificación en la barra del sistema y campanita
+    final currencyFmt = NumberFormat('#,###', 'es_PY');
+    final paidGs = '${currencyFmt.format(amountPaid.round()).replaceAll(',', '.')} Gs.';
+    NotificationService().notifyUser(
+      title: 'Hotel 3Vagos - Comprobante de Pago Aprobado',
+      body: 'Tu pago por $paidGs para la Reserva #${widget.booking.codigoReserva} fue procesado exitosamente ($methodName). Ref: $voucherCode.',
+      type: 'invoice',
+      prefKey: 'alert_pref_invoice_app_mail',
+      data: {
+        'booking_code': widget.booking.codigoReserva,
+        'voucher_code': voucherCode,
+        'paid_amount': amountPaid,
+      },
     );
 
     showDialog(

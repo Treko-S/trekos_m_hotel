@@ -6,6 +6,7 @@ import 'package:trekos_m_hotel/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:trekos_m_hotel/features/hotel_search/presentation/bloc/hotel_bloc.dart';
 import 'package:trekos_m_hotel/features/hotel_search/presentation/bloc/hotel_event.dart';
 import 'package:trekos_m_hotel/core/services/notification_service.dart';
+import 'package:trekos_m_hotel/core/widgets/biometric_session_guard.dart';
 import 'package:trekos_m_hotel/features/splash/presentation/pages/splash_page.dart';
 import 'package:trekos_m_hotel/init_dependencies.dart';
 
@@ -37,6 +38,9 @@ class MyApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
+      builder: (context, child) => BiometricSessionGuard(
+        child: child ?? const SizedBox.shrink(),
+      ),
       home: const SplashScreen(),
     );
   }

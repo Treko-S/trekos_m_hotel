@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:trekos_m_hotel/core/theme/app_theme.dart';
 import 'package:trekos_m_hotel/core/services/email_notification_service.dart';
+import 'package:trekos_m_hotel/core/services/notification_service.dart';
 import 'package:trekos_m_hotel/features/auth/domain/entities/user.dart';
 import 'package:trekos_m_hotel/features/hotel_search/domain/entities/booking.dart';
 import 'package:trekos_m_hotel/features/hotel_search/domain/entities/companion_guest.dart';
@@ -2204,6 +2205,19 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
       checkIn: _checkIn,
       checkOut: _checkOut,
       totalAmount: _totalPrice,
+    );
+
+    // Disparo de notificación local en barra de estado y campanita de la App
+    NotificationService().notifyUser(
+      title: 'Hotel 3Vagos - Reserva Confirmada #$bookingCode',
+      body: '¡Tu estadía en ${widget.room.tipoNombre} (Hab. ${widget.room.numero}) ha sido confirmada con éxito!',
+      type: 'booking',
+      prefKey: 'alert_pref_checkin',
+      data: {
+        'booking_code': bookingCode,
+        'room_number': widget.room.numero,
+        'room_type': widget.room.tipoNombre,
+      },
     );
 
     final resolvedBooking = createdBooking ??

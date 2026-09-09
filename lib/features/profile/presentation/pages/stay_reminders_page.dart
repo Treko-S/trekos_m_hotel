@@ -36,20 +36,34 @@ class _StayRemindersPageState extends State<StayRemindersPage> {
 
       if (mounted) {
         setState(() {
-          if (cin != null) _checkInAlert = cin == 'true';
-          if (rr != null) _roomReadyAlert = rr == 'true';
-          if (fc != null) _folioChargesAlert = fc == 'true';
-          if (cout != null) _checkOutAlert = cout == 'true';
-          if (inv != null) _invoiceDigitalAlert = inv == 'true';
-          if (promo != null) _promotionsAlert = promo == 'true';
+          _checkInAlert = cin == null ? true : (cin == 'true');
+          _roomReadyAlert = rr == null ? true : (rr == 'true');
+          _folioChargesAlert = fc == null ? true : (fc == 'true');
+          _checkOutAlert = cout == null ? true : (cout == 'true');
+          _invoiceDigitalAlert = inv == null ? true : (inv == 'true');
+          _promotionsAlert = promo == null ? false : (promo == 'true');
         });
       }
     } catch (_) {}
   }
 
-  Future<void> _savePreference(String key, bool val) async {
+  Future<void> _savePreference(String key, bool val, String label) async {
     try {
       await _storage.write(key: key, value: val.toString());
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              val ? '$label activada' : '$label desactivada',
+              style: const TextStyle(fontSize: 12.5),
+            ),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppTheme.navyLuxury,
+          ),
+        );
+      }
     } catch (_) {}
   }
 
@@ -108,7 +122,7 @@ class _StayRemindersPageState extends State<StayRemindersPage> {
                     value: _checkInAlert,
                     onChanged: (v) {
                       setState(() => _checkInAlert = v);
-                      _savePreference('alert_pref_checkin', v);
+                      _savePreference('alert_pref_checkin', v, 'Alerta de Check-in');
                     },
                   ),
                   const Divider(height: 1, color: Color(0xFFF1F5F9)),
@@ -119,7 +133,7 @@ class _StayRemindersPageState extends State<StayRemindersPage> {
                     value: _roomReadyAlert,
                     onChanged: (v) {
                       setState(() => _roomReadyAlert = v);
-                      _savePreference('alert_pref_roomready', v);
+                      _savePreference('alert_pref_roomready', v, 'Aviso de Habitación Lista');
                     },
                   ),
                   const Divider(height: 1, color: Color(0xFFF1F5F9)),
@@ -130,7 +144,7 @@ class _StayRemindersPageState extends State<StayRemindersPage> {
                     value: _folioChargesAlert,
                     onChanged: (v) {
                       setState(() => _folioChargesAlert = v);
-                      _savePreference('alert_pref_folio', v);
+                      _savePreference('alert_pref_folio', v, 'Alertas de Consumos');
                     },
                   ),
                 ],
@@ -163,7 +177,7 @@ class _StayRemindersPageState extends State<StayRemindersPage> {
                     value: _checkOutAlert,
                     onChanged: (v) {
                       setState(() => _checkOutAlert = v);
-                      _savePreference('alert_pref_checkout', v);
+                      _savePreference('alert_pref_checkout', v, 'Alerta de Check-out');
                     },
                   ),
                   const Divider(height: 1, color: Color(0xFFF1F5F9)),
@@ -174,7 +188,7 @@ class _StayRemindersPageState extends State<StayRemindersPage> {
                     value: _invoiceDigitalAlert,
                     onChanged: (v) {
                       setState(() => _invoiceDigitalAlert = v);
-                      _savePreference('alert_pref_invoice_app_mail', v);
+                      _savePreference('alert_pref_invoice_app_mail', v, 'Notificación de Facturas y Comprobantes');
                     },
                   ),
                   const Divider(height: 1, color: Color(0xFFF1F5F9)),
@@ -185,7 +199,7 @@ class _StayRemindersPageState extends State<StayRemindersPage> {
                     value: _promotionsAlert,
                     onChanged: (v) {
                       setState(() => _promotionsAlert = v);
-                      _savePreference('alert_pref_promo', v);
+                      _savePreference('alert_pref_promo', v, 'Promociones y Descuentos');
                     },
                   ),
                 ],
