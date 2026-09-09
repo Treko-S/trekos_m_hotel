@@ -137,9 +137,7 @@ class RoomModel extends Room {
 
     if (dbStatus.toLowerCase() == 'ocupada' || isOccupiedToday) {
       calculatedStatus = 'Ocupada';
-      if (activeCheckOutDate == null) {
-        activeCheckOutDate = DateTime.now().add(const Duration(days: 3));
-      }
+      activeCheckOutDate ??= DateTime.now().add(const Duration(days: 3));
     } else if (dbStatus.toLowerCase() == 'disponible') {
       calculatedStatus = 'Disponible';
     }

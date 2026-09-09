@@ -154,7 +154,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       Expanded(
                         flex: 3,
                         child: DropdownButtonFormField<String>(
-                          value: _selectedDocumentType,
+                          initialValue: _selectedDocumentType,
                           isExpanded: true,
                           decoration: _inputStyle('Tipo', contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12)),
                           dropdownColor: Colors.white,
@@ -186,7 +186,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
                   // Nacionalidad
                   DropdownButtonFormField<String>(
-                    value: _selectedNationality,
+                    initialValue: _selectedNationality,
                     hint: const Text('Seleccionar Nacionalidad', style: TextStyle(color: Colors.black54, fontSize: 13)),
                     decoration: _inputStyle('Nacionalidad'),
                     dropdownColor: Colors.white,

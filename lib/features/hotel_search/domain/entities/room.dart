@@ -41,10 +41,7 @@ class Room extends Equatable {
   final String? imagenCover;
   final List<String> imagenes;
   final DateTime? fechaDisponibleDesde;
-  final List<RoomBookedRange>? _bookedRanges;
-
-  /// Retorna la lista de rangos reservados garantizando que nunca sea nula.
-  List<RoomBookedRange> get bookedRanges => _bookedRanges ?? const [];
+  final List<RoomBookedRange> bookedRanges;
 
   const Room({
     required this.id,
@@ -61,8 +58,8 @@ class Room extends Equatable {
     this.imagenCover,
     this.imagenes = const [],
     this.fechaDisponibleDesde,
-    List<RoomBookedRange>? bookedRanges,
-  }) : _bookedRanges = bookedRanges;
+    this.bookedRanges = const [],
+  });
 
   /// Estado público para la interfaz del cliente/huésped:
   /// - 'Disponible': si la habitación está lista para reservar.

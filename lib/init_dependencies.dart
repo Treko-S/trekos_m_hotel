@@ -25,7 +25,7 @@ Future<void> initDependencies() async {
     url: dotenv.env['SUPABASE_URL']?.trim().isNotEmpty == true
         ? dotenv.env['SUPABASE_URL']!.trim()
         : 'https://nfbiqdhiowroosvfazid.supabase.co',
-    anonKey: dotenv.env['SUPABASE_ANON_KEY']?.trim().isNotEmpty == true
+    publishableKey: dotenv.env['SUPABASE_ANON_KEY']?.trim().isNotEmpty == true
         ? dotenv.env['SUPABASE_ANON_KEY']!.trim()
         : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5mYmlxZGhpb3dyb29zdmZhemlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwODExMTAsImV4cCI6MjEwMzY1NzExMH0.cq1gk6qvvbtY3j_kZVAGR4vSLXRhprxYalzWPAp7HzI',
   );
