@@ -1280,36 +1280,173 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
         const SizedBox(height: 18),
 
         // Tipo Débito / Crédito Selector
-        Row(
-          children: [
-            Expanded(
-              child: ChoiceChip(
-                label: const Center(child: Text('Tarjeta de Crédito')),
-                selected: _cardType == 'Crédito',
-                onSelected: (val) => setState(() => _cardType = 'Crédito'),
-                selectedColor: const Color(0xFFE0F2FE),
-                labelStyle: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                  color: _cardType == 'Crédito' ? const Color(0xFF0369A1) : const Color(0xFF64748B),
+        Builder(
+          builder: (context) {
+            final isSaved = !_isCustomCardManual && _selectedSavedCard != null;
+            final isCredit = _cardType.toLowerCase().contains('crédito') || _cardType.toLowerCase().contains('credito');
+            final isDebit = _cardType.toLowerCase().contains('débito') || _cardType.toLowerCase().contains('debito');
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: ChoiceChip(
+                        avatar: isSaved && isCredit
+                            ? const Icon(Icons.lock_rounded, size: 14, color: Color(0xFF0369A1))
+                            : null,
+                        label: Center(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('Tarjeta de Crédito'),
+                                if (isSaved && isCredit) ...[
+                                  const SizedBox(width: 5),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF0284C7).withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'Fija',
+                                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF0369A1)),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                        selected: isCredit,
+                        onSelected: (val) {
+                          if (isSaved) {
+                            if (!isCredit) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Esta tarjeta está registrada como ${_selectedSavedCard!.type} (${_selectedSavedCard!.brand}). Para pagar con Crédito, selecciona tu tarjeta de crédito arriba o pulsa "Otra Tarjeta".',
+                                  ),
+                                  backgroundColor: AppTheme.navyLuxury,
+                                  duration: const Duration(seconds: 3),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                            return;
+                          }
+                          setState(() => _cardType = 'Crédito');
+                        },
+                        selectedColor: const Color(0xFFE0F2FE),
+                        disabledColor: const Color(0xFFF1F5F9),
+                        labelStyle: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: isCredit
+                              ? const Color(0xFF0369A1)
+                              : (isSaved ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ChoiceChip(
+                        avatar: isSaved && isDebit
+                            ? const Icon(Icons.lock_rounded, size: 14, color: Color(0xFF0369A1))
+                            : null,
+                        label: Center(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('Tarjeta de Débito'),
+                                if (isSaved && isDebit) ...[
+                                  const SizedBox(width: 5),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF0284C7).withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'Fija',
+                                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF0369A1)),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                        selected: isDebit,
+                        onSelected: (val) {
+                          if (isSaved) {
+                            if (!isDebit) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Esta tarjeta está registrada como ${_selectedSavedCard!.type} (${_selectedSavedCard!.brand}). Para pagar con Débito, selecciona tu tarjeta de débito arriba o pulsa "Otra Tarjeta".',
+                                  ),
+                                  backgroundColor: AppTheme.navyLuxury,
+                                  duration: const Duration(seconds: 3),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                            return;
+                          }
+                          setState(() => _cardType = 'Débito');
+                        },
+                        selectedColor: const Color(0xFFE0F2FE),
+                        disabledColor: const Color(0xFFF1F5F9),
+                        labelStyle: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          color: isDebit
+                              ? const Color(0xFF0369A1)
+                              : (isSaved ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: ChoiceChip(
-                label: const Center(child: Text('Tarjeta de Débito')),
-                selected: _cardType == 'Débito',
-                onSelected: (val) => setState(() => _cardType = 'Débito'),
-                selectedColor: const Color(0xFFE0F2FE),
-                labelStyle: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                  color: _cardType == 'Débito' ? const Color(0xFF0369A1) : const Color(0xFF64748B),
-                ),
-              ),
-            ),
-          ],
+                const SizedBox(height: 6),
+                if (isSaved)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.shield_outlined, size: 14, color: AppTheme.primaryBlue),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Tipo inmutable: Tarjeta de ${_selectedSavedCard!.type} (${_selectedSavedCard!.brand}). Asignado por el emisor de este medio guardado.',
+                            style: const TextStyle(fontSize: 10.5, color: Color(0xFF475569), height: 1.25),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4),
+                    child: Text(
+                      'Indica si tu nueva tarjeta es de Crédito o Débito según corresponda.',
+                      style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
 
         const SizedBox(height: 14),
@@ -1321,6 +1458,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
           hint: '4532 0000 0000 0000',
           icon: Icons.credit_card_outlined,
           keyboardType: TextInputType.number,
+          readOnly: !_isCustomCardManual,
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
             LengthLimitingTextInputFormatter(16),
@@ -1338,6 +1476,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
           hint: 'JUAN PÉREZ',
           icon: Icons.person_outline_rounded,
           textCapitalization: TextCapitalization.characters,
+          readOnly: !_isCustomCardManual,
           onChanged: (_) => setState(() {}),
         ),
 
@@ -1353,6 +1492,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                 hint: 'MM/AA',
                 icon: Icons.date_range_outlined,
                 keyboardType: TextInputType.number,
+                readOnly: !_isCustomCardManual,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(4),
@@ -1370,6 +1510,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                 icon: Icons.lock_outline_rounded,
                 keyboardType: TextInputType.number,
                 obscureText: true,
+                readOnly: !_isCustomCardManual,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(4),
@@ -1383,14 +1524,15 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
         // Checkbox para guardar tarjeta si se ingresa manualmente
         if (_isCustomCardManual) ...[
           const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
+          Material(
+            color: const Color(0xFFF1F5F9),
+            shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              side: const BorderSide(color: Color(0xFFE2E8F0)),
             ),
-            child: CheckboxListTile(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              child: CheckboxListTile(
               value: _saveCardForFuture,
               onChanged: (val) => setState(() => _saveCardForFuture = val ?? false),
               title: const Text(
@@ -1407,6 +1549,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
               activeColor: AppTheme.navyLuxury,
             ),
           ),
+        ),
         ],
       ],
     );
@@ -2039,6 +2182,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
     TextInputType? keyboardType,
     List<TextInputFormatter>? inputFormatters,
     bool obscureText = false,
+    bool readOnly = false,
     TextCapitalization textCapitalization = TextCapitalization.none,
     void Function(String)? onChanged,
   }) {
@@ -2047,15 +2191,26 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
       keyboardType: keyboardType,
       inputFormatters: inputFormatters,
       obscureText: obscureText,
+      readOnly: readOnly,
       textCapitalization: textCapitalization,
       onChanged: onChanged,
-      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.navyLuxury),
+      style: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: readOnly ? const Color(0xFF475569) : AppTheme.navyLuxury,
+      ),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
         prefixIcon: Icon(icon, size: 20, color: const Color(0xFF64748B)),
+        suffixIcon: readOnly
+            ? const Tooltip(
+                message: 'Medio sincronizado seguro',
+                child: Icon(Icons.lock_outline_rounded, size: 16, color: Color(0xFF94A3B8)),
+              )
+            : null,
         filled: true,
-        fillColor: Colors.white,
+        fillColor: readOnly ? const Color(0xFFF8FAFC) : Colors.white,
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
@@ -2064,11 +2219,14 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+          borderSide: BorderSide(color: readOnly ? const Color(0xFFE2E8F0) : const Color(0xFFE2E8F0)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppTheme.primaryBlue, width: 1.5),
+          borderSide: BorderSide(
+            color: readOnly ? const Color(0xFFCBD5E1) : AppTheme.primaryBlue,
+            width: readOnly ? 1.0 : 1.5,
+          ),
         ),
       ),
     );

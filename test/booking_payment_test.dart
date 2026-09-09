@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:intl/intl.dart';
@@ -180,6 +181,7 @@ void main() {
     late HotelBloc hotelBloc;
 
     setUp(() {
+      FlutterSecureStorage.setMockInitialValues({});
       repository = MockHotelRepositoryForPayment();
       hotelBloc = HotelBloc(hotelRepository: repository);
     });
@@ -483,6 +485,55 @@ void main() {
       expect(hasOverflow, isFalse);
       expect(find.text('¡Reserva Confirmada!'), findsOneWidget);
       expect(find.text('101 (Habitacion Standard Single)'), findsOneWidget);
+    });
+
+    testWidgets('Tarjeta guardada bloquea incoherencia entre crédito y débito', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(500, 1800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        createTestWidget(
+          hotelBloc: hotelBloc,
+          child: BookingPaymentPage(booking: testBooking),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      // La tarjeta por defecto es Visa Crédito
+      expect(find.text('Tarjeta de Crédito'), findsOneWidget);
+      expect(find.text('Tarjeta de Débito'), findsOneWidget);
+      expect(find.text('Fija'), findsOneWidget);
+
+      // Asegurar visibilidad y tocar Tarjeta de Débito cuando está activa la Visa Crédito
+      await tester.ensureVisible(find.text('Tarjeta de Débito'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.text('Tarjeta de Débito'));
+      await tester.pump();
+
+      // Debe mostrar SnackBar explicativo de que la tarjeta es fija
+      expect(find.textContaining('Esta tarjeta está registrada como Crédito'), findsOneWidget);
+
+      // Ahora seleccionamos Otra Tarjeta (Manual)
+      await tester.ensureVisible(find.text('Otra Tarjeta'));
+      await tester.tap(find.text('Otra Tarjeta'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // En modo manual, el tipo no es fijo
+      expect(find.text('Fija'), findsNothing);
+
+      // Ahora sí se puede cambiar a Débito libremente
+      await tester.ensureVisible(find.text('Tarjeta de Débito'));
+      await tester.tap(find.text('Tarjeta de Débito'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('Indica si tu nueva tarjeta es de Crédito o Débito según corresponda.'), findsOneWidget);
     });
 
     testWidgets('Modal Preventivo de Confirmación de Fechas no genera RenderFlex overflow en pantalla de 320px', (WidgetTester tester) async {
