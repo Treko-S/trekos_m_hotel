@@ -158,31 +158,26 @@ class HotelRemoteDataSourceImpl implements HotelRemoteDataSource {
       }
 
       if (acompanantes.isNotEmpty) {
-        // 1. Guardar en reservation_companions según arquitectura relacional solicitada
+        // Guardar acompañantes en tabla 'acompanantes' con las columnas
+        // que existen en producción: reserva_id, full_name, document_number
         try {
-          final companionRows = acompanantes.map((a) => {
-            'reservation_id': bookingId,
-            'reserva_id': bookingId,
-            'nombre_completo': a.fullName.trim(),
-            'tipo_documento': a.documentType,
-            'numero_documento': a.documentNumber.trim(),
-          }).toList();
-          await supabaseClient.from('reservation_companions').insert(companionRows);
-        } catch (_) {}
-
-        // 2. Guardar en acompanantes para retrocompatibilidad
-        try {
-          final fullRows = acompanantes.map((a) => a.toMap(bookingId)).toList();
-          await supabaseClient.from('acompanantes').insert(fullRows);
-        } catch (_) {
-          try {
-            final fallbackRows = acompanantes.map((a) => {
+          final companionRows = acompanantes.map((a) => <String, dynamic>{
               'reserva_id': bookingId,
               'full_name': a.fullName.trim(),
-              'document_number': a.legalDocumentSummary,
-            }).toList();
-            await supabaseClient.from('acompanantes').insert(fallbackRows);
-          } catch (_) {}
+              'document_number': a.documentNumber.trim(),
+          }).toList();
+          await supabaseClient.from('acompanantes').insert(companionRows);
+        } catch (e) {
+          // Fallback: insertar uno por uno para evitar fallo masivo
+          for (final a in acompanantes) {
+            try {
+              await supabaseClient.from('acompanantes').insert({
+                'reserva_id': bookingId,
+                'full_name': a.fullName.trim(),
+                'document_number': a.documentNumber.trim(),
+              });
+            } catch (_) {}
+          }
         }
       }
 
