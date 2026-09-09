@@ -154,7 +154,8 @@ class _ServicesTabState extends State<ServicesTab> {
       final channel = Supabase.instance.client.channel('hotel_universal_sync');
       channel.onBroadcast(event: 'hotel_data_updated', callback: (payload) {
         final table = payload['table']?.toString() ?? '';
-        if (table == 'catalogo_servicios' || table == 'hotel_catalog_sales') {
+        final entity = payload['entity']?.toString() ?? '';
+        if (table == 'catalogo_servicios' || table == 'hotel_catalog_sales' || entity == 'sales_catalog') {
           _loadCatalogFromStorage();
         }
       }).subscribe();
@@ -164,8 +165,9 @@ class _ServicesTabState extends State<ServicesTab> {
   Future<void> _loadCatalogFromStorage() async {
     try {
       final dio = Dio();
+      final cacheBuster = DateTime.now().millisecondsSinceEpoch;
       final response = await dio.get(
-        'https://nfbiqdhiowroosvfazid.supabase.co/storage/v1/object/public/hotel-rooms/catalog/sales_catalog.json',
+        'https://nfbiqdhiowroosvfazid.supabase.co/storage/v1/object/public/hotel-rooms/catalog/sales_catalog.json?t=$cacheBuster',
         options: Options(responseType: ResponseType.json),
       );
 

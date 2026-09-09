@@ -3,8 +3,21 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/services/hotel_settings_service.dart';
 
-class LegalPoliciesPage extends StatelessWidget {
+class LegalPoliciesPage extends StatefulWidget {
   const LegalPoliciesPage({super.key});
+
+  @override
+  State<LegalPoliciesPage> createState() => _LegalPoliciesPageState();
+}
+
+class _LegalPoliciesPageState extends State<LegalPoliciesPage> {
+  @override
+  void initState() {
+    super.initState();
+    HotelSettingsService.init().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

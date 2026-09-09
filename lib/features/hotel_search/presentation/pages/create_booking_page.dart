@@ -76,6 +76,28 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
     _guestNationality = widget.user.nationality ?? 'Paraguaya';
     _syncCompanions();
     _fetchSeasonsAndPlans();
+    _subscribeToRealtimeSync();
+  }
+
+  RealtimeChannel? _bookingSyncChannel;
+
+  void _subscribeToRealtimeSync() {
+    try {
+      final supabase = Supabase.instance.client;
+      _bookingSyncChannel = supabase.channel('hotel_universal_sync');
+      _bookingSyncChannel!.onBroadcast(
+        event: 'hotel_data_updated',
+        callback: (payload) {
+          final table = payload['table']?.toString() ?? '';
+          final entity = payload['entity']?.toString() ?? '';
+          if (table == 'temporadas' || entity == 'seasons' ||
+              table == 'hotel_rate_plans' || entity == 'rate_plans' ||
+              table == 'promotional_packages' || entity == 'promotional_packages') {
+            _fetchSeasonsAndPlans();
+          }
+        },
+      ).subscribe();
+    } catch (_) {}
   }
 
   double _seasonMultiplier = 1.0;
@@ -112,6 +134,8 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
       final supabase = Supabase.instance.client;
       // 1. Cargar temporadas vigentes para la fecha seleccionada
       final seasonsRes = await supabase.from('temporadas').select();
+      double matchedMult = 1.0;
+      String? matchedName;
       if (seasonsRes.isNotEmpty) {
         final checkInStr = DateFormat('yyyy-MM-dd').format(_checkIn);
         for (final s in seasonsRes) {
@@ -119,17 +143,18 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
           final end = s['fecha_fin']?.toString();
           if (start != null && end != null) {
             if (checkInStr.compareTo(start) >= 0 && checkInStr.compareTo(end) <= 0) {
-              final mult = ((s['multiplicador_tarifa'] ?? s['multiplicador']) as num?)?.toDouble() ?? 1.0;
-              if (mounted) {
-                setState(() {
-                  _seasonMultiplier = mult;
-                  _seasonName = s['nombre']?.toString();
-                });
-              }
+              matchedMult = ((s['multiplicador_tarifa'] ?? s['multiplicador']) as num?)?.toDouble() ?? 1.0;
+              matchedName = s['nombre']?.toString();
               break;
             }
           }
         }
+      }
+      if (mounted) {
+        setState(() {
+          _seasonMultiplier = matchedMult;
+          _seasonName = matchedName;
+        });
       }
 
       // 2. Cargar planes de tarifas dinámicos de Supabase Storage

@@ -15,7 +15,7 @@ class HotelSettingsService {
   static String email = 'reservas@hotel3vagos.com.py';
   static String currency = 'Gs.';
   static String timezone = 'America/Asuncion';
-  static String checkInTime = '14:00';
+  static String checkInTime = '13:00';
   static String checkOutTime = '11:00';
   static String cancellationPolicyText =
       'Cancelación 100% gratuita hasta 24 hs previas al check-in en Tarifa Flexible. Tarifa Promo no admite reembolso.';
@@ -27,9 +27,11 @@ class HotelSettingsService {
 
   static bool _isLoaded = false;
   static bool get isLoaded => _isLoaded;
+  static RealtimeChannel? _syncChannel;
 
   /// Inicializa la configuración descargándola de Supabase DB o Supabase Storage
   static Future<void> init() async {
+    subscribeToRealtimeSync();
     try {
       final client = Supabase.instance.client;
 
@@ -69,6 +71,25 @@ class HotelSettingsService {
     } catch (e) {
       debugPrint('HotelSettingsService.init error general: $e');
     }
+  }
+
+  /// Escucha actualizaciones en tiempo real vía Broadcast desde el Web Admin
+  static void subscribeToRealtimeSync() {
+    if (_syncChannel != null) return;
+    try {
+      final client = Supabase.instance.client;
+      _syncChannel = client.channel('hotel_universal_sync');
+      _syncChannel!.onBroadcast(
+        event: 'hotel_data_updated',
+        callback: (payload) {
+          final table = payload['table']?.toString() ?? '';
+          final entity = payload['entity']?.toString() ?? '';
+          if (table == 'hotel_settings' || entity == 'hotel_settings') {
+            init();
+          }
+        },
+      ).subscribe();
+    } catch (_) {}
   }
 
   static void _applySettingsMap(Map<String, dynamic> map) {
