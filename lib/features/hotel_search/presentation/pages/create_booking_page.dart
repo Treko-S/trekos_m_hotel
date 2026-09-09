@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -73,6 +74,80 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
     _guestDocNumber = widget.user.documentNumber ?? '';
     _guestNationality = widget.user.nationality ?? 'Paraguaya';
     _syncCompanions();
+    _fetchSeasonsAndPlans();
+  }
+
+  double _seasonMultiplier = 1.0;
+  String? _seasonName;
+  List<Map<String, dynamic>> _ratePlans = [
+    {
+      'code': 'flexible',
+      'name': 'Tarifa Flexible Estándar',
+      'badge': 'Sin Riesgo',
+      'discount': 0,
+      'cancellation': 'Cancelación 100% gratuita hasta 24 hs previas al check-in. Máxima flexibilidad.',
+    },
+    {
+      'code': 'promo',
+      'name': 'Tarifa Promo No Reembolsable',
+      'badge': 'Ahorra 10% 🌟',
+      'discount': 10,
+      'cancellation': 'Pago anticipado garantizado. No admite reembolso en caso de cancelación o no-show.',
+    },
+    {
+      'code': 'corporativo',
+      'name': 'Tarifa Corporativa & Larga Estadía',
+      'badge': 'Ahorra 15% 💼',
+      'discount': 15,
+      'cancellation': 'Tarifa corporativa preferencial aplicable para convenios o estadías superiores a 3 noches.',
+    },
+  ];
+
+  Future<void> _fetchSeasonsAndPlans() async {
+    try {
+      final supabase = Supabase.instance.client;
+      // 1. Cargar temporadas vigentes para la fecha seleccionada
+      final seasonsRes = await supabase.from('temporadas').select().eq('activo', true);
+      if (seasonsRes.isNotEmpty) {
+        final checkInStr = DateFormat('yyyy-MM-dd').format(_checkIn);
+        for (final s in seasonsRes) {
+          final start = s['fecha_inicio']?.toString();
+          final end = s['fecha_fin']?.toString();
+          if (start != null && end != null) {
+            if (checkInStr.compareTo(start) >= 0 && checkInStr.compareTo(end) <= 0) {
+              final mult = (s['multiplicador'] as num?)?.toDouble() ?? 1.0;
+              if (mounted) {
+                setState(() {
+                  _seasonMultiplier = mult;
+                  _seasonName = s['nombre']?.toString();
+                });
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      // 2. Cargar planes de tarifas dinámicos de Supabase Storage
+      try {
+        final storageData = await supabase.storage.from('hotel-rooms').download('config/rate_plans.json');
+        if (storageData.isNotEmpty) {
+          final jsonString = utf8.decode(storageData);
+          final decoded = jsonDecode(jsonString);
+          if (decoded is List && decoded.isNotEmpty) {
+            final activePlans = decoded
+                .where((p) => p['active'] != false)
+                .map((p) => Map<String, dynamic>.from(p as Map))
+                .toList();
+            if (activePlans.isNotEmpty && mounted) {
+              setState(() {
+                _ratePlans = activePlans;
+              });
+            }
+          }
+        }
+      } catch (_) {}
+    } catch (_) {}
   }
 
   void _syncCompanions() {
@@ -117,15 +192,23 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
     });
   }
 
-  String _selectedRatePlan = 'flexible'; // 'flexible' | 'promo'
+  String _selectedRatePlan = 'flexible'; // 'flexible' | 'promo' | 'corporativo'
 
   int get _totalNights {
     final diff = _checkOut.difference(_checkIn).inDays;
     return diff > 0 ? diff : 1;
   }
 
-  double get _basePrice => widget.room.precioBase * _totalNights;
-  double get _discount => _selectedRatePlan == 'promo' ? (_basePrice * 0.10) : 0.0;
+  double get _nightlyPrice => widget.room.precioBase * _seasonMultiplier;
+  double get _basePrice => _nightlyPrice * _totalNights;
+  double get _discount {
+    final plan = _ratePlans.firstWhere(
+      (p) => p['code'] == _selectedRatePlan,
+      orElse: () => {'discount': _selectedRatePlan == 'promo' ? 10 : (_selectedRatePlan == 'corporativo' ? 15 : 0)},
+    );
+    final disc = (plan['discount'] as num?)?.toDouble() ?? 0.0;
+    return _basePrice * (disc / 100.0);
+  }
   double get _totalPrice => _basePrice - _discount;
   double get _iva10 => _totalPrice / 11;
 
@@ -771,7 +854,9 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                       children: [
                         Expanded(
                           child: Text(
-                            'Tarifa base (${currencyFormat.format(room.precioBase)} Gs. x $_totalNights noche${_totalNights > 1 ? 's' : ''})',
+                            _seasonMultiplier != 1.0 && _seasonName != null
+                                ? 'Tarifa base (${currencyFormat.format(_nightlyPrice)} Gs. [$_seasonName] x $_totalNights noche${_totalNights > 1 ? 's' : ''})'
+                                : 'Tarifa base (${currencyFormat.format(_nightlyPrice)} Gs. x $_totalNights noche${_totalNights > 1 ? 's' : ''})',
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -790,10 +875,10 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Expanded(
+                          Expanded(
                             child: Text(
-                              'Descuento Promo No Reembolsable (-10%)',
-                              style: TextStyle(color: Color(0xFF15803D), fontWeight: FontWeight.w600, fontSize: 13),
+                              'Descuento ${_ratePlans.firstWhere((p) => p['code'] == _selectedRatePlan, orElse: () => {'name': 'Promoción'})['name']}',
+                              style: const TextStyle(color: Color(0xFF15803D), fontWeight: FontWeight.w600, fontSize: 13),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -947,6 +1032,7 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
         }
         _hasDateCollision = !widget.room.isDateRangeAvailable(_checkIn, _checkOut);
       });
+      _fetchSeasonsAndPlans();
       if (_hasDateCollision) {
         _showCollisionSnackBar();
       }
@@ -1097,7 +1183,11 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
   }
 
   void _proceedWithBookingCreation() {
-    final ratePlanString = _selectedRatePlan == 'promo' ? 'No Reembolsable' : 'Flexible';
+    final selectedPlanObj = _ratePlans.firstWhere(
+      (p) => p['code'] == _selectedRatePlan,
+      orElse: () => {'name': _selectedRatePlan == 'promo' ? 'No Reembolsable' : (_selectedRatePlan == 'corporativo' ? 'Corporativo' : 'Flexible')},
+    );
+    final ratePlanString = selectedPlanObj['name']?.toString() ?? (_selectedRatePlan == 'promo' ? 'No Reembolsable' : 'Flexible');
     context.read<HotelBloc>().add(
           HotelCreateBookingRequested(
             habitacionId: widget.room.id,
@@ -2513,9 +2603,6 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
   }
 
   Widget _buildRatePlanSelector() {
-    final promoTotal = _basePrice * 0.90;
-    final ahorroGs = _basePrice * 0.10;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2535,217 +2622,201 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
             ),
           ],
         ),
+        if (_seasonName != null && _seasonMultiplier != 1.0) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.wb_sunny_rounded, color: Color(0xFFD97706), size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Temporada: $_seasonName (${_seasonMultiplier > 1.0 ? "+${((_seasonMultiplier - 1.0) * 100).round()}%" : "${((_seasonMultiplier - 1.0) * 100).round()}%"})',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF92400E)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 10),
 
-        // Opción 1: Tarifa Flexible Estándar
-        InkWell(
-          onTap: () {
-            setState(() {
-              _selectedRatePlan = 'flexible';
-            });
-          },
-          borderRadius: BorderRadius.circular(16),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: _selectedRatePlan == 'flexible' ? const Color(0xFFF8FAFC) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: _selectedRatePlan == 'flexible' ? AppTheme.navyLuxury : const Color(0xFFE2E8F0),
-                width: _selectedRatePlan == 'flexible' ? 2.0 : 1.0,
-              ),
-              boxShadow: _selectedRatePlan == 'flexible'
-                  ? [BoxShadow(color: AppTheme.navyLuxury.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, 3))]
-                  : const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 2, right: 10),
-                  child: Icon(
-                    _selectedRatePlan == 'flexible'
-                        ? Icons.radio_button_checked_rounded
-                        : Icons.radio_button_off_rounded,
-                    color: _selectedRatePlan == 'flexible' ? AppTheme.navyLuxury : const Color(0xFF94A3B8),
-                    size: 22,
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Tarifa Flexible Estándar',
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: AppTheme.navyLuxury,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE0F2FE),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'Sin Riesgo',
-                              style: TextStyle(color: Color(0xFF0284C7), fontSize: 10, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Cancelación 100% gratuita hasta 24 hs previas al check-in. Máxima flexibilidad.',
-                        style: TextStyle(color: Color(0xFF64748B), fontSize: 11.5),
-                      ),
-                      const SizedBox(height: 6),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          '${currencyFormat.format(_basePrice)} Gs.',
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: AppTheme.navyLuxury,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        ..._ratePlans.map((plan) {
+          final code = plan['code']?.toString() ?? 'flexible';
+          final name = plan['name']?.toString() ?? 'Tarifa Estándar';
+          final badge = plan['badge']?.toString() ?? '';
+          final desc = plan['cancellation']?.toString() ?? 'Condiciones regulares de estancia';
+          final discPercent = (plan['discount'] as num?)?.toDouble() ?? 0.0;
+          final isSelected = _selectedRatePlan == code;
 
-        const SizedBox(height: 12),
+          final planPrice = _basePrice * (1.0 - (discPercent / 100.0));
+          final savings = _basePrice * (discPercent / 100.0);
 
-        // Opción 2: Tarifa Promocional No Reembolsable (-10% OFF)
-        InkWell(
-          onTap: () {
-            setState(() {
-              _selectedRatePlan = 'promo';
-            });
-          },
-          borderRadius: BorderRadius.circular(16),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: _selectedRatePlan == 'promo' ? const Color(0xFFFFFBEB) : Colors.white,
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12.0),
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _selectedRatePlan = code;
+                });
+              },
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: _selectedRatePlan == 'promo' ? const Color(0xFFD97706) : const Color(0xFFE2E8F0),
-                width: _selectedRatePlan == 'promo' ? 2.0 : 1.0,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? (discPercent > 0 ? const Color(0xFFFFFBEB) : const Color(0xFFF8FAFC))
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isSelected
+                        ? (discPercent > 0 ? const Color(0xFFD97706) : AppTheme.navyLuxury)
+                        : const Color(0xFFE2E8F0),
+                    width: isSelected ? 2.0 : 1.0,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: (discPercent > 0 ? const Color(0xFFD97706) : AppTheme.navyLuxury)
+                                .withValues(alpha: 0.10),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          )
+                        ]
+                      : const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2, right: 10),
+                      child: Icon(
+                        isSelected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
+                        color: isSelected
+                            ? (discPercent > 0 ? const Color(0xFFD97706) : AppTheme.navyLuxury)
+                            : const Color(0xFF94A3B8),
+                        size: 22,
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  name,
+                                  style: GoogleFonts.poppins(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: discPercent > 0 ? const Color(0xFF92400E) : AppTheme.navyLuxury,
+                                  ),
+                                ),
+                              ),
+                              if (badge.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: discPercent > 0 ? const Color(0xFFFEF3C7) : const Color(0xFFE0F2FE),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: discPercent > 0 ? const Color(0xFFFDE68A) : const Color(0xFFBAE6FD),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    badge,
+                                    style: TextStyle(
+                                      color: discPercent > 0 ? const Color(0xFFB45309) : const Color(0xFF0284C7),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            desc,
+                            style: TextStyle(
+                              color: discPercent > 0 ? const Color(0xFF78350F) : const Color(0xFF64748B),
+                              fontSize: 11.5,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          if (discPercent > 0)
+                            Wrap(
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: [
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    '${currencyFormat.format(planPrice)} Gs.',
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                      color: const Color(0xFFB45309),
+                                    ),
+                                  ),
+                                ),
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    '${currencyFormat.format(_basePrice)} Gs.',
+                                    style: const TextStyle(
+                                      decoration: TextDecoration.lineThrough,
+                                      color: Color(0xFF94A3B8),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFDCFCE7),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    '-${currencyFormat.format(savings)} Gs.',
+                                    style: const TextStyle(
+                                      color: Color(0xFF15803D),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          else
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '${currencyFormat.format(_basePrice)} Gs.',
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: AppTheme.navyLuxury,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              boxShadow: _selectedRatePlan == 'promo'
-                  ? [BoxShadow(color: const Color(0xFFD97706).withValues(alpha: 0.12), blurRadius: 8, offset: const Offset(0, 3))]
-                  : const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 2, right: 10),
-                  child: Icon(
-                    _selectedRatePlan == 'promo'
-                        ? Icons.radio_button_checked_rounded
-                        : Icons.radio_button_off_rounded,
-                    color: _selectedRatePlan == 'promo' ? const Color(0xFFD97706) : const Color(0xFF94A3B8),
-                    size: 22,
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Tarifa Promo No Reembolsable',
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: const Color(0xFF92400E),
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFEF3C7),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0xFFFDE68A)),
-                            ),
-                            child: const Text(
-                              'Ahorra 10% 🌟',
-                              style: TextStyle(color: Color(0xFFB45309), fontSize: 10, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Pago anticipado garantizado. No admite reembolso en caso de cancelación o no-show.',
-                        style: TextStyle(color: Color(0xFF78350F), fontSize: 11.5),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              '${currencyFormat.format(promoTotal)} Gs.',
-                              style: GoogleFonts.poppins(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
-                                color: const Color(0xFFB45309),
-                              ),
-                            ),
-                          ),
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              '${currencyFormat.format(_basePrice)} Gs.',
-                              style: const TextStyle(
-                                decoration: TextDecoration.lineThrough,
-                                color: Color(0xFF94A3B8),
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFDCFCE7),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              '-${currencyFormat.format(ahorroGs)} Gs.',
-                              style: const TextStyle(color: Color(0xFF15803D), fontSize: 10, fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+          );
+        }),
       ],
     );
   }
