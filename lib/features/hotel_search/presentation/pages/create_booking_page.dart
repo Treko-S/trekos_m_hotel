@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:trekos_m_hotel/core/theme/app_theme.dart';
 import 'package:trekos_m_hotel/core/services/email_notification_service.dart';
 import 'package:trekos_m_hotel/core/services/notification_service.dart';
+import 'package:trekos_m_hotel/core/services/hotel_settings_service.dart';
 import 'package:trekos_m_hotel/features/auth/domain/entities/user.dart';
 import 'package:trekos_m_hotel/features/hotel_search/domain/entities/booking.dart';
 import 'package:trekos_m_hotel/features/hotel_search/domain/entities/companion_guest.dart';
@@ -79,6 +80,9 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
 
   double _seasonMultiplier = 1.0;
   String? _seasonName;
+  List<Map<String, dynamic>> _promoPackages = [];
+  Map<String, dynamic>? _selectedPromoPackage;
+
   List<Map<String, dynamic>> _ratePlans = [
     {
       'code': 'flexible',
@@ -147,6 +151,14 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
           }
         }
       } catch (_) {}
+
+      // 3. Cargar paquetes promocionales vinculados al tipo de habitación (Tarea 13)
+      final pkgs = await HotelSettingsService.getActivePromotionalPackages(roomTypeId: widget.room.tipoId);
+      if (pkgs.isNotEmpty && mounted) {
+        setState(() {
+          _promoPackages = pkgs;
+        });
+      }
     } catch (_) {}
   }
 
@@ -209,7 +221,13 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
     final disc = (plan['discount'] as num?)?.toDouble() ?? 0.0;
     return _basePrice * (disc / 100.0);
   }
-  double get _totalPrice => _basePrice - _discount;
+  double get _totalPrice {
+    if (_selectedPromoPackage != null) {
+      final pkgPrice = (_selectedPromoPackage!['package_price'] as num?)?.toDouble() ?? 0.0;
+      if (pkgPrice > 0) return pkgPrice;
+    }
+    return _basePrice - _discount;
+  }
   double get _iva10 => _totalPrice / 11;
 
   @override
@@ -238,6 +256,9 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
         }
 
         if (state.bookingSuccessCode != null && !state.isSubmittingBooking) {
+          if (_selectedPromoPackage != null) {
+            _dispatchPackageIncludedServices(state.bookingSuccessCode!, state.createdBooking);
+          }
           _showLuxurySuccessDialog(context, state.bookingSuccessCode!, state.createdBooking);
         }
       },
@@ -488,7 +509,7 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                               ),
                             ),
                             Text(
-                              'Desde 14:00 hs',
+                              'Desde ${HotelSettingsService.checkInTime} hs',
                               style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                             ),
                           ],
@@ -531,7 +552,7 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                               ),
                             ),
                             Text(
-                              'Hasta 11:00 hs',
+                              'Hasta ${HotelSettingsService.checkOutTime} hs',
                               style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                             ),
                           ],
@@ -870,7 +891,31 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                         ),
                       ],
                     ),
-                    if (_discount > 0) ...[
+                    if (_selectedPromoPackage != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Paquete Promocional: ${_selectedPromoPackage!['name']}',
+                              style: const TextStyle(color: Color(0xFFB45309), fontWeight: FontWeight.bold, fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: const Color(0xFFFDE68A)),
+                            ),
+                            child: const Text('Todo Incluido (0 Gs. extras)', style: TextStyle(fontSize: 10.5, color: Color(0xFF92400E), fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    ] else if (_discount > 0) ...[
                       const SizedBox(height: 8),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1187,7 +1232,11 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
       (p) => p['code'] == _selectedRatePlan,
       orElse: () => {'name': _selectedRatePlan == 'promo' ? 'No Reembolsable' : (_selectedRatePlan == 'corporativo' ? 'Corporativo' : 'Flexible')},
     );
-    final ratePlanString = selectedPlanObj['name']?.toString() ?? (_selectedRatePlan == 'promo' ? 'No Reembolsable' : 'Flexible');
+    String ratePlanString = selectedPlanObj['name']?.toString() ?? (_selectedRatePlan == 'promo' ? 'No Reembolsable' : 'Flexible');
+    if (_selectedPromoPackage != null) {
+      ratePlanString = '${_selectedPromoPackage!['name']} (Paquete Promocional)';
+    }
+
     context.read<HotelBloc>().add(
           HotelCreateBookingRequested(
             habitacionId: widget.room.id,
@@ -1283,7 +1332,7 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                           ),
                           Flexible(
                             child: Text(
-                              '${dateFormat.format(_checkIn)} (14:00 hs)',
+                              '${dateFormat.format(_checkIn)} (${HotelSettingsService.checkInTime} hs)',
                               textAlign: TextAlign.right,
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: AppTheme.navyLuxury),
                               overflow: TextOverflow.ellipsis,
@@ -1310,7 +1359,7 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
                           ),
                           Flexible(
                             child: Text(
-                              '${dateFormat.format(_checkOut)} (11:00 hs)',
+                              '${dateFormat.format(_checkOut)} (${HotelSettingsService.checkOutTime} hs)',
                               textAlign: TextAlign.right,
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: AppTheme.navyLuxury),
                               overflow: TextOverflow.ellipsis,
@@ -2645,7 +2694,164 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
             ),
           ),
         ],
-        const SizedBox(height: 10),
+        // ==========================================
+        // PAQUETES DE PROMOCIÓN DESTACADOS (TAREA 13)
+        // ==========================================
+        if (_promoPackages.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(Icons.card_giftcard_rounded, color: Color(0xFFD97706), size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'PAQUETES EN PROMOCIÓN (EXPERIENCIA CERRADA)',
+                style: GoogleFonts.poppins(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFFB45309),
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ..._promoPackages.map((pkg) {
+            final isSelected = _selectedPromoPackage?['id'] == pkg['id'];
+            final pkgPrice = (pkg['package_price'] as num?)?.toDouble() ?? 0.0;
+            final pkgName = pkg['name']?.toString() ?? 'Paquete Promocional';
+            final pkgDesc = pkg['description']?.toString() ?? 'Experiencia exclusiva todo incluido';
+            final services = (pkg['services'] as List<dynamic>?) ?? [];
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    if (isSelected) {
+                      _selectedPromoPackage = null;
+                    } else {
+                      _selectedPromoPackage = pkg;
+                    }
+                  });
+                },
+                borderRadius: BorderRadius.circular(16),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    gradient: isSelected
+                        ? const LinearGradient(
+                            colors: [Color(0xFFFFFBEB), Color(0xFFFEF3C7)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : const LinearGradient(
+                            colors: [Colors.white, Color(0xFFF8FAFC)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isSelected ? const Color(0xFFD97706) : const Color(0xFFCBD5E1),
+                      width: isSelected ? 2.0 : 1.0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFD97706).withValues(alpha: isSelected ? 0.15 : 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFD97706),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.star_rounded, color: Colors.white, size: 14),
+                                SizedBox(width: 4),
+                                Text(
+                                  'MEJORA TU ESTADÍA',
+                                  style: TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                          Icon(
+                            isSelected ? Icons.check_circle_rounded : Icons.radio_button_off_rounded,
+                            color: isSelected ? const Color(0xFFD97706) : const Color(0xFF94A3B8),
+                            size: 22,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        pkgName,
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: AppTheme.navyLuxury,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        pkgDesc,
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.3),
+                      ),
+                      if (services.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: services.map((s) {
+                            final sName = s['item_name']?.toString() ?? 'Servicio';
+                            final sQty = s['quantity'] ?? 1;
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFECFDF5),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFA7F3D0)),
+                              ),
+                              child: Text(
+                                '✓ $sName (x$sQty) • 0 Gs.',
+                                style: const TextStyle(fontSize: 10.5, color: Color(0xFF047857), fontWeight: FontWeight.bold),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Precio Cerrado Paquete:',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF475569), fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            '${currencyFormat.format(pkgPrice)} Gs.',
+                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFFB45309)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 6),
+        ],
 
         ..._ratePlans.map((plan) {
           final code = plan['code']?.toString() ?? 'flexible';
@@ -2819,6 +3025,52 @@ class _CreateBookingPageState extends State<CreateBookingPage> {
         }),
       ],
     );
+  }
+
+  Future<void> _dispatchPackageIncludedServices(String bookingCode, Booking? booking) async {
+    if (_selectedPromoPackage == null) return;
+    try {
+      final client = Supabase.instance.client;
+      final pkgId = _selectedPromoPackage!['id']?.toString();
+      final pkgName = _selectedPromoPackage!['name']?.toString() ?? 'Paquete Promocional';
+
+      // 1. Actualizar reserva con paquete_id y nombre_paquete
+      try {
+        await client.from('reservas').update({
+          'paquete_id': pkgId,
+          'nombre_paquete': pkgName,
+          'canal_reserva': 'App Móvil',
+        }).eq('codigo_reserva', bookingCode);
+      } catch (_) {}
+
+      // 2. Disparar los servicios incluidos a 0 Gs. al módulo de consumos / folio
+      final services = (_selectedPromoPackage!['services'] as List<dynamic>?) ?? [];
+      for (final s in services) {
+        final sName = s['item_name']?.toString() ?? 'Servicio Incluido';
+        final sQty = (s['quantity'] as num?)?.toInt() ?? 1;
+
+        try {
+          await client.from('consumos_habitacion').insert({
+            'habitacion_id': widget.room.id,
+            'item_nombre': '$sName ($pkgName)',
+            'cantidad': sQty,
+            'precio_unitario': 0,
+            'total': 0,
+            'estado': 'Pendiente de entrega',
+            'observaciones': 'Incluido en paquete promocional pagado (0 Gs.)',
+          });
+        } catch (_) {}
+      }
+
+      // 3. Notificación local en la app
+      await NotificationService().notifyUser(
+        title: '¡Experiencia Promocional Activada! 🎁',
+        body: 'Tu reserva $bookingCode incluye el "$pkgName" con servicios de cortesía sin cargo en tu folio.',
+        type: 'promo',
+      );
+    } catch (e) {
+      debugPrint('Error registrando servicios de paquete: $e');
+    }
   }
 }
 

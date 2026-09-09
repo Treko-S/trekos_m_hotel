@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/intl.dart';
+import 'package:trekos_m_hotel/core/services/hotel_settings_service.dart';
 
 class EmailNotificationService {
   static final Dio _dio = Dio(BaseOptions(
@@ -69,11 +70,11 @@ class EmailNotificationService {
             </tr>
             <tr style="border-bottom: 1px solid #E2E8F0;">
               <td style="padding: 8px 0; color: #64748B;">Check-in:</td>
-              <td style="padding: 8px 0; text-align: right;">${dateFmt.format(checkIn)} (14:00 Hs)</td>
+              <td style="padding: 8px 0; text-align: right;">${dateFmt.format(checkIn)} (${HotelSettingsService.checkInTime} Hs)</td>
             </tr>
             <tr style="border-bottom: 1px solid #E2E8F0;">
               <td style="padding: 8px 0; color: #64748B;">Check-out:</td>
-              <td style="padding: 8px 0; text-align: right;">${dateFmt.format(checkOut)} (11:00 Hs)</td>
+              <td style="padding: 8px 0; text-align: right;">${dateFmt.format(checkOut)} (${HotelSettingsService.checkOutTime} Hs)</td>
             </tr>
             <tr style="border-bottom: 1px solid #E2E8F0;">
               <td style="padding: 8px 0; color: #64748B;">Monto Total Estadía:</td>

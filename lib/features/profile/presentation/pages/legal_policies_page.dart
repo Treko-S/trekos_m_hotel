@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/services/hotel_settings_service.dart';
 
 class LegalPoliciesPage extends StatelessWidget {
   const LegalPoliciesPage({super.key});
@@ -59,7 +60,7 @@ class LegalPoliciesPage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Bienvenido a Hotel 3 Vagos',
+                          'Bienvenido a ${HotelSettingsService.hotelName}',
                           style: GoogleFonts.poppins(
                             fontWeight: FontWeight.bold,
                             fontSize: 14.5,
@@ -86,8 +87,8 @@ class LegalPoliciesPage extends StatelessWidget {
               iconColor: const Color(0xFF1D4ED8),
               bgColor: const Color(0xFFEFF6FF),
               items: [
-                'Check-in: Desde las 14:00 hs',
-                'Check-out: Hasta las 11:00 hs',
+                'Check-in: Desde las ${HotelSettingsService.checkInTime} hs',
+                'Check-out: Hasta las ${HotelSettingsService.checkOutTime} hs',
                 'Late Check-out: Sujeto a disponibilidad en recepción',
               ],
             ),
@@ -95,13 +96,13 @@ class LegalPoliciesPage extends StatelessWidget {
 
             // 2. Cancelaciones y Seña
             _buildConciseCard(
-              title: 'Cancelación y Seña',
+              title: 'Cancelación y Políticas',
               icon: Icons.event_busy_rounded,
               iconColor: const Color(0xFFD97706),
               bgColor: const Color(0xFFFEF3C7),
               items: [
-                'Cancelación gratuita hasta 48 horas antes de tu llegada',
-                'Cancelaciones con menos tiempo retienen el 50% de la seña',
+                HotelSettingsService.cancellationPolicyText,
+                'Reembolsos para pagos móviles se reintegran directamente a tu cuenta bancaria.',
               ],
             ),
             const SizedBox(height: 12),

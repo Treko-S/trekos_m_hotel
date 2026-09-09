@@ -5,6 +5,7 @@ import 'package:trekos_m_hotel/core/theme/app_theme.dart';
 import 'package:trekos_m_hotel/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:trekos_m_hotel/features/hotel_search/presentation/bloc/hotel_bloc.dart';
 import 'package:trekos_m_hotel/features/hotel_search/presentation/bloc/hotel_event.dart';
+import 'package:trekos_m_hotel/core/services/hotel_settings_service.dart';
 import 'package:trekos_m_hotel/core/services/notification_service.dart';
 import 'package:trekos_m_hotel/core/widgets/biometric_session_guard.dart';
 import 'package:trekos_m_hotel/features/splash/presentation/pages/splash_page.dart';
@@ -16,6 +17,7 @@ void main() async {
   await initializeDateFormatting('es', null);
   await initDependencies();
   await NotificationService().init();
+  await HotelSettingsService.init();
   runApp(
     MultiBlocProvider(
       providers: [

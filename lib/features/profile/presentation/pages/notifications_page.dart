@@ -10,6 +10,7 @@ import 'package:trekos_m_hotel/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:trekos_m_hotel/features/auth/presentation/pages/login_page.dart';
 import 'package:trekos_m_hotel/features/hotel_search/presentation/bloc/hotel_bloc.dart';
 import 'package:trekos_m_hotel/core/services/notification_service.dart';
+import 'package:trekos_m_hotel/core/services/hotel_settings_service.dart';
 import 'package:trekos_m_hotel/features/profile/presentation/pages/my_invoices_page.dart';
 
 class HotelNotificationItem {
@@ -142,8 +143,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
             items.add(
               HotelNotificationItem(
                 id: stayId,
-                title: 'Hotel 3Vagos - Reserva ${b.codigoReserva}',
-                description: 'Tu estadía en ${b.habitacionTipo} (Hab. ${b.habitacionNumero}) está agendada del ${b.checkInPrevisto} al ${b.checkOutPrevisto}. Check-in disponible a las 14:00 hs.',
+                title: '${HotelSettingsService.hotelName} - Reserva ${b.codigoReserva}',
+                description: 'Tu estadía en ${b.habitacionTipo} (Hab. ${b.habitacionNumero}) está agendada del ${b.checkInPrevisto} al ${b.checkOutPrevisto}. Check-in disponible a las ${HotelSettingsService.checkInTime} hs.',
                 time: 'Hab. ${b.habitacionNumero}',
                 type: 'stay',
                 isRead: readIds.contains(stayId),

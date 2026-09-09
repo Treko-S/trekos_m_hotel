@@ -15,6 +15,7 @@ import 'package:trekos_m_hotel/features/hotel_search/presentation/bloc/hotel_eve
 import 'package:trekos_m_hotel/features/hotel_search/presentation/pages/create_booking_page.dart';
 import 'package:trekos_m_hotel/features/hotel_search/presentation/widgets/photo_gallery_viewer.dart';
 import 'package:trekos_m_hotel/core/services/loyalty_service.dart';
+import 'package:trekos_m_hotel/core/services/hotel_settings_service.dart';
 
 class RoomDetailPage extends StatefulWidget {
   final Room room;
@@ -473,13 +474,13 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
                   _buildPolicyCard(
                     icon: Icons.login_rounded,
                     title: 'Check-in',
-                    subtitle: 'A partir de las 14:00 hs (Recepción 24 hs disponible)',
+                    subtitle: 'A partir de las ${HotelSettingsService.checkInTime} hs (Recepción 24 hs disponible)',
                   ),
                   const SizedBox(height: 8),
                   _buildPolicyCard(
                     icon: Icons.logout_rounded,
                     title: 'Check-out',
-                    subtitle: 'Hasta las 11:00 hs (Late check-out sujeto a disponibilidad)',
+                    subtitle: 'Hasta las ${HotelSettingsService.checkOutTime} hs (Late check-out sujeto a disponibilidad)',
                   ),
                   const SizedBox(height: 8),
                   _buildPolicyCard(

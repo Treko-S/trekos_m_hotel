@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:trekos_m_hotel/core/services/hotel_settings_service.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/theme/app_theme.dart';
 
@@ -116,7 +117,7 @@ class _StayRemindersPageState extends State<StayRemindersPage> {
               child: Column(
                 children: [
                   _buildSwitchTile(
-                    title: 'Aviso de Check-in (14:00 Hs)',
+                    title: 'Aviso de Check-in (${HotelSettingsService.checkInTime} Hs)',
                     subtitle: 'Recordatorio 2 horas antes de tu llegada prevista al hotel.',
                     icon: Icons.login_rounded,
                     value: _checkInAlert,
@@ -171,8 +172,8 @@ class _StayRemindersPageState extends State<StayRemindersPage> {
               child: Column(
                 children: [
                   _buildSwitchTile(
-                    title: 'Aviso de Check-out (11:00 Hs)',
-                    subtitle: 'Alerta a las 10:00 hs para entrega de llaves y liquidación en recepción.',
+                    title: 'Aviso de Check-out (${HotelSettingsService.checkOutTime} Hs)',
+                    subtitle: 'Alerta previa para entrega de llaves y liquidación en recepción.',
                     icon: Icons.logout_rounded,
                     value: _checkOutAlert,
                     onChanged: (v) {

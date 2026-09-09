@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:trekos_m_hotel/core/services/booking_pdf_service.dart';
+import 'package:trekos_m_hotel/core/services/hotel_settings_service.dart';
 import 'package:trekos_m_hotel/core/theme/app_theme.dart';
 import 'package:trekos_m_hotel/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:trekos_m_hotel/features/auth/presentation/pages/login_page.dart';
@@ -3706,7 +3707,7 @@ class _BookingCardItemState extends State<BookingCardItem> {
                     const Divider(height: 12, color: Color(0xFFE2E8F0)),
                     _buildModalSummaryRow('Habitación:', 'Hab. ${booking.habitacionNumero} (${booking.habitacionTipo})'),
                     const Divider(height: 12, color: Color(0xFFE2E8F0)),
-                    _buildModalSummaryRow('Fecha Check-in:', '${booking.checkInPrevisto} (14:00 hs)'),
+                    _buildModalSummaryRow('Fecha Check-in:', '${booking.checkInPrevisto} (${HotelSettingsService.checkInTime} hs)'),
                     const Divider(height: 12, color: Color(0xFFE2E8F0)),
                     _buildModalSummaryRow(
                       'Antelación Actual:',
