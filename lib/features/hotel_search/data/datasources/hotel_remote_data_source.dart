@@ -158,6 +158,19 @@ class HotelRemoteDataSourceImpl implements HotelRemoteDataSource {
       }
 
       if (acompanantes.isNotEmpty) {
+        // 1. Guardar en reservation_companions según arquitectura relacional solicitada
+        try {
+          final companionRows = acompanantes.map((a) => {
+            'reservation_id': bookingId,
+            'reserva_id': bookingId,
+            'nombre_completo': a.fullName.trim(),
+            'tipo_documento': a.documentType,
+            'numero_documento': a.documentNumber.trim(),
+          }).toList();
+          await supabaseClient.from('reservation_companions').insert(companionRows);
+        } catch (_) {}
+
+        // 2. Guardar en acompanantes para retrocompatibilidad
         try {
           final fullRows = acompanantes.map((a) => a.toMap(bookingId)).toList();
           await supabaseClient.from('acompanantes').insert(fullRows);
